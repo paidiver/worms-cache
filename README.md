@@ -225,13 +225,6 @@ docker compose -f docker/docker-compose.yml run --rm api tox -e py313
 
 Coverage reports are written to `coverage_reports/`.
 
-To run the tests for the ruby microservice:
-
-```bash
-docker compose -f docker/docker-compose.yml run --rm -e RACK_ENV=test taxamatch bundle _2.4.22_ exec rspec
-```
-
-
 ## API Examples
 
 A collection of example API requests and responses is available in the [API Examples](docs/API_EXAMPLES.md) document.
