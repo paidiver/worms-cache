@@ -1,0 +1,49 @@
+services:
+  db:
+    image: postgres:16
+    container_name: worms_cache_db
+    restart: always
+    env_file:
+      - ../.env
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    ports:
+      - "5435:5432"
+
+  api:
+    build:
+      context: ../
+      dockerfile: docker/Dockerfile
+    env_file:
+      - ../.env
+    restart: always
+    depends_on:
+      - db
+    ports:
+      - "8000:8000"
+    command: >
+      sh -c "bash /tmp/scripts/wait-for-it.sh db:5432 --timeout=30 &&
+             python manage.py runserver 0.0.0.0:8000"
+    volumes:
+      - ../:/app:Z
+      - ../docker/scripts:/tmp/scripts
+
+  taxamatch:
+    build:
+      context: ../
+      dockerfile: docker/Dockerfile.taxamatch
+    environment:
+      PORT: "8080"
+      RACK_ENV: "development"
+      PUMA_WORKERS: "1"
+      PUMA_THREADS: "8"
+      MAX_NAMES: "50"
+      MAX_CANDIDATES_PER_NAME: "300"
+    ports:
+      - "8082:8080"
+    volumes:
+      - ../taxamatch_service:/app:Z
+    restart: unless-stopped
+
+volumes:
+  pg_data:
