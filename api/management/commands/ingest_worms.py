@@ -5,6 +5,7 @@ from argparse import ArgumentParser
 from django.core.management.base import BaseCommand
 
 from api.services.ingest_aphia_id import IngestAphiaId
+from api.services.rebuild_name_index import rebuild_name_index
 
 
 class Command(BaseCommand):
@@ -36,3 +37,4 @@ class Command(BaseCommand):
 
         ingest_aphiad_id = IngestAphiaId(ids)
         ingest_aphiad_id.ingest(add_ranks=opts.get("add_ranks", False))
+        rebuild_name_index()

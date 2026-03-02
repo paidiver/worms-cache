@@ -105,3 +105,14 @@ class WoRMSClient:
             A list of dictionaries representing the synonyms, or an empty list if not found.
         """
         return self._get(f"/AphiaSynonymsByAphiaID/{aphia_id}") or []
+
+    def records_by_date(self, start_date: str) -> list[dict]:
+        """Fetch the records modified on a given date.
+
+        Args:
+            start_date: The date (in YYYY-MM-DD format) for which to fetch modified records.
+
+        Returns:
+            A list of dictionaries representing the records modified on the given date.
+        """
+        return self._get(f"/AphiaRecordsByDate?startdate={start_date}") or []

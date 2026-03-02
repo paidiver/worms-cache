@@ -112,7 +112,7 @@ class IngestAphiaId:
         status = record.get("status") or ""
         valid_taxon = None
         if valid_id and int(valid_id) != aphia_id:
-            valid_taxon, _ = Taxon.objects.get_or_create(
+            valid_taxon, _ = Taxon.objects.update_or_create(
                 aphia_id=int(valid_id),
                 defaults={
                     "scientific_name": record.get("valid_name") or "",
@@ -145,9 +145,9 @@ class IngestAphiaId:
         """
         name = rank_record.get("taxonRank")
         rank_id = rank_record.get("taxonRankID")
-        Rank.objects.get_or_create(
+        Rank.objects.update_or_create(
             rank_id=int(rank_id),
-            defaults={"name": name or ""},
+            name=name.strip() if name else "",
         )
 
     def _walk_classification_tree(self, tree: dict) -> list[tuple[int, str, str]]:
@@ -157,7 +157,7 @@ class IngestAphiaId:
             tree: A nested dictionary representing the classification chain, typically obtained from the WoRMS API
 
         Returns:
-            A list of tuples containing the AphiaID, rank, and scientific name for each tax
+            A list of tuples containing the AphiaID, rank, and scientific name for each taxon in classification chain.
         """
         chain = []
         current = tree

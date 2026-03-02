@@ -55,7 +55,7 @@ SPECTACULAR_SETTINGS = {
         {"name": "Taxa", "description": "Endpoints for managing taxon data"},
         {"name": "Vernaculars", "description": "Endpoints for managing vernacular data"},
         {"name": "Ranks", "description": "Endpoints for managing rank data"},
-        {"name": "Name Index", "description": "Endpoints for managing name and vernacular index data"},
+        {"name": "Search Index", "description": "Endpoints for managing name and vernacular index data"},
         {"name": "Health Check", "description": "Endpoint for checking service health status"},
     ],
 }
