@@ -3,7 +3,7 @@
 The PAIDIVER Annotations API provides a database-backed REST API for working with image metadata, with a focus on annotations for underwater imagery.
 
 The application source code and Helm charts are hosted under
-https://github.com/paidiver/annotations-api
+https://github.com/paidiver/worms-cache.
 
 These instructions guide you through deploying the application using Helm and Helmfile. They assume a Kubernetes cluster is already available and accessible.
 
