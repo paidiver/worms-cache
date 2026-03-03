@@ -1,0 +1,110 @@
+replicaCount: 1
+
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+
+api:
+  componentName: "worms-cache-api"
+  image:
+    repository: ghcr.io/paidiver/worms-cache
+    tag: latest
+    pullPolicy: Always
+    imagePullSecret: ""
+  port: 8000
+  timeout: 300
+  workers: 1
+  service:
+    port: 8000
+  env:
+    djangoSecretKey:
+      secretName: my-app-secrets
+      secretKey: django-secret-key
+    djangoDebug: "1"
+    taxamatchUrl: "http://{{ .Release.Name }}-taxamatch-service:8080"
+  securityContext:
+    runAsUser: 1000
+  initContainer:
+    securityContext:
+      runAsUser: 1000
+
+ingress:
+  enabled: true
+  api:
+    path: worms-cache
+    pathType: Prefix
+  ingressClassName: ""
+  host: ""
+
+nameOverride: ""
+fullnameOverride: ""
+
+global:
+  defaultStorageClass: ""
+
+postgresql:
+  image:
+    digest: sha256:8c7f26a8ba4257fcbf4445bd50e156cbc7d8114942fb3d6523320c7732781b54
+  auth:
+    enablePostgresUser: true
+    username: ""
+    existingSecret: ""
+    database: ""
+  primary:
+    service:
+      port: "5432"
+
+taxamatch:
+  enabled: true
+  componentName: "taxamatch"
+  image:
+    repository: ghcr.io/paidiver/worms-cache
+    tag: rb-latest
+    pullPolicy: Always
+    imagePullSecret: ""
+  port: 8080
+  service:
+    port: 8080
+  env:
+    PORT: "8080"
+    RACK_ENV: "production"
+    PUMA_WORKERS: "1"
+    PUMA_THREADS: "8"
+    MAX_NAMES: "50"
+    MAX_CANDIDATES_PER_NAME: "300"
+  securityContext:
+    runAsUser: 1000
+
+migrateJob:
+  enabled: true
+  runOnInstall: true
+  runOnUpgrade: true
+  image:
+    repository: ghcr.io/paidiver/worms-cache
+    tag: latest
+    pullPolicy: Always
+    imagePullSecret: ""
+
+ingestJob:
+  enabled: false
+  runOnInstall: true
+  runOnUpgrade: false
+  image:
+    repository: ghcr.io/paidiver/worms-cache
+    tag: latest
+    pullPolicy: Always
+    imagePullSecret: ""
+  aphiaIdsFile: "initial_aphia_ids.txt"
+  addRanks: true
+
+refreshCron:
+  enabled: false
+  schedule: "0 3 * * *"
+  args: ["python", "manage.py", "refresh_worms", "--cache-ttl", "2"]

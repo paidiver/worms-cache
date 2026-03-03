@@ -1,0 +1,64 @@
+{{- if .Values.migrateJob.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "paidiver-worms-cache-api.fullname" . }}-migrate
+  labels:
+    {{- include "paidiver-worms-cache-api.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: {{- if .Values.migrateJob.runOnUpgrade -}}
+      {{- if .Values.migrateJob.runOnInstall -}} post-install,post-upgrade {{- else -}} post-upgrade {{- end -}}
+    {{- else -}}
+      {{- if .Values.migrateJob.runOnInstall -}} post-install {{- else -}} post-install {{- end -}}
+    {{- end }}
+    helm.sh/hook-weight: "-1"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: Never
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      initContainers:
+        - name: wait-for-postgres
+          image: bitnami/postgresql@{{ .Values.postgresql.image.digest }}
+          command:
+            - sh
+            - -ec
+            - |
+              echo "Waiting for PostgreSQL..."
+              until pg_isready \
+                -h $POSTGRES_HOST \
+                -p $POSTGRES_PORT \
+                -U $POSTGRES_USER; do
+                sleep 2
+              done
+          env: {{ include "api.postgresEnv" . | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.api.initContainer.securityContext | nindent 12 }}
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+      containers:
+        - name: migrate
+          image: "{{ .Values.migrateJob.image.repository }}:{{ .Values.migrateJob.image.tag }}"
+          imagePullPolicy: {{ .Values.migrateJob.image.pullPolicy }}
+          env:
+            {{ include "api.postgresEnv" . | nindent 12 }}
+            - name: DJANGO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.api.env.djangoSecretKey.secretName }}
+                  key: {{ .Values.api.env.djangoSecretKey.secretKey }}
+            - name: DJANGO_DEBUG
+              value: "{{ .Values.api.env.djangoDebug }}"
+          command:
+            - sh
+            - -ec
+            - |
+              python manage.py migrate
+          securityContext:
+            {{- toYaml .Values.api.securityContext | nindent 12 }}
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+      imagePullSecrets:
+        - name: {{ .Values.migrateJob.image.imagePullSecret }}
+{{- end }}

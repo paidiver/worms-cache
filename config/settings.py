@@ -101,7 +101,7 @@ DEBUG = os.environ.get("DJANGO_DEBUG", "1") == "1"
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.environ.get("POSTGRES_DB", "annotationsdb"),
+        "NAME": os.environ.get("POSTGRES_DB", "worms-cachedb"),
         "USER": os.environ.get("POSTGRES_USER", "myuser"),
         "PASSWORD": os.environ.get("POSTGRES_PASSWORD", "mypassword"),
         "HOST": os.environ.get("POSTGRES_HOST", "localhost"),

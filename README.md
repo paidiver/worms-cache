@@ -82,7 +82,7 @@ cp .env.example .env
 Example contents:
 
 ```env
-POSTGRES_DB=annotationsdb
+POSTGRES_DB=worms-cachedb
 POSTGRES_USER=myuser
 POSTGRES_PASSWORD=mypassword
 POSTGRES_HOST=db

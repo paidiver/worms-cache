@@ -1,0 +1,33 @@
+{{- if and .Values.bootstrap.enabled .Values.bootstrap.refreshCron.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "paidiver-worms-cache-api.fullname" . }}-refresh
+spec:
+  schedule: "{{ .Values.bootstrap.refreshCron.schedule }}"
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          restartPolicy: Never
+          initContainers:
+            - name: wait-for-postgres
+              image: bitnami/postgresql@{{ .Values.postgresql.image.digest }}
+              command:
+                - sh
+                - -ec
+                - |
+                  echo "Waiting for PostgreSQL..."
+                  until pg_isready -h $POSTGRES_HOST -p $POSTGRES_PORT -U $POSTGRES_USER; do
+                    sleep 2
+                  done
+              env: {{ include "api.postgresEnv" . | nindent 16 }}
+          containers:
+            - name: refresh
+              image: "{{ .Values.api.image.repository }}:{{ .Values.api.image.tag }}"
+              imagePullPolicy: {{ .Values.api.image.pullPolicy }}
+              env:
+                {{ include "api.postgresEnv" . | nindent 16 }}
+              command: {{ toYaml .Values.bootstrap.refreshCron.args | nindent 16 }}
+{{- end }}

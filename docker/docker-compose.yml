@@ -1,6 +1,6 @@
 services:
   db:
-    image: postgres:16
+    image: postgres:18.2.4
     container_name: worms_cache_db
     restart: always
     env_file:

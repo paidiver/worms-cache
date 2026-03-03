@@ -1,0 +1,48 @@
+{{- if .Values.taxamatch.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "paidiver-worms-cache-api.fullname" . }}-taxamatch
+  labels:
+    {{- include "paidiver-worms-cache-api.labels" . | nindent 4 }}
+    component: {{ .Values.taxamatch.componentName }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}
+      component: {{ .Values.taxamatch.componentName }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}
+        component: {{ .Values.taxamatch.componentName }}
+        {{- include "paidiver-worms-cache-api.labels" . | nindent 8 }}
+    spec:
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: taxamatch
+          image: "{{ .Values.taxamatch.image.repository }}:{{ .Values.taxamatch.image.tag }}"
+          imagePullPolicy: {{ .Values.taxamatch.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.taxamatch.port }}
+          env:
+            - name: PORT
+              value: "{{ .Values.taxamatch.env.PORT }}"
+            - name: RACK_ENV
+              value: "{{ .Values.taxamatch.env.RACK_ENV }}"
+            - name: PUMA_WORKERS
+              value: "{{ .Values.taxamatch.env.PUMA_WORKERS }}"
+            - name: PUMA_THREADS
+              value: "{{ .Values.taxamatch.env.PUMA_THREADS }}"
+            - name: MAX_NAMES
+              value: "{{ .Values.taxamatch.env.MAX_NAMES }}"
+            - name: MAX_CANDIDATES_PER_NAME
+              value: "{{ .Values.taxamatch.env.MAX_CANDIDATES_PER_NAME }}"
+          securityContext:
+            {{- toYaml .Values.taxamatch.securityContext | nindent 12 }}
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+      imagePullSecrets:
+        - name: {{ .Values.taxamatch.image.imagePullSecret }}
+{{- end }}

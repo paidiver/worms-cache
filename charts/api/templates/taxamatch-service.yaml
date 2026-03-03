@@ -1,0 +1,16 @@
+{{- if .Values.taxamatch.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-taxamatch-service
+  labels:
+    {{- include "paidiver-worms-cache-api.labels" . | nindent 4 }}
+    component: {{ .Values.taxamatch.componentName }}
+spec:
+  selector:
+    app: {{ .Release.Name }}
+    component: {{ .Values.taxamatch.componentName }}
+  ports:
+    - port: {{ .Values.taxamatch.service.port }}
+      targetPort: {{ .Values.taxamatch.port }}
+{{- end }}

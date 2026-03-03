@@ -1,0 +1,59 @@
+{{- if .Values.ingestJob.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "paidiver-worms-cache-api.fullname" . }}-ingest
+  labels:
+    {{- include "paidiver-worms-cache-api.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: {{- if .Values.ingestJob.runOnUpgrade -}}
+      {{- if .Values.ingestJob.runOnInstall -}} post-install,post-upgrade {{- else -}} post-upgrade {{- end -}}
+    {{- else -}}
+      {{- if .Values.ingestJob.runOnInstall -}} post-install {{- else -}} post-install {{- end -}}
+    {{- end }}
+    helm.sh/hook-weight: "0"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: Never
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      initContainers:
+        - name: wait-for-postgres
+          image: bitnami/postgresql@{{ .Values.postgresql.image.digest }}
+          command:
+            - sh
+            - -ec
+            - |
+              echo "Waiting for PostgreSQL..."
+              until pg_isready \
+                -h $POSTGRES_HOST \
+                -p $POSTGRES_PORT \
+                -U $POSTGRES_USER; do
+                sleep 2
+              done
+          env: {{ include "api.postgresEnv" . | nindent 12 }}
+      containers:
+        - name: ingest
+          image: "{{ .Values.ingestJob.image.repository }}:{{ .Values.ingestJob.image.tag }}"
+          imagePullPolicy: {{ .Values.ingestJob.image.pullPolicy }}
+          env:
+            {{ include "api.postgresEnv" . | nindent 12 }}
+            - name: DJANGO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.api.env.djangoSecretKey.secretName }}
+                  key: {{ .Values.api.env.djangoSecretKey.secretKey }}
+            - name: DJANGO_DEBUG
+              value: "{{ .Values.api.env.djangoDebug }}"
+          command:
+            - sh
+            - -ec
+            - |
+              python manage.py migrate
+              python manage.py ingest_worms \
+                --file {{ .Values.ingestJob.aphiaIdsFile }} \
+                {{- if .Values.ingestJob.addRanks }} --add-ranks {{- end }}
+{{- end }}
