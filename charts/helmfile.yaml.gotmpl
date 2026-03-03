@@ -1,0 +1,86 @@
+repositories:
+  - name: paidiver-annotations-api
+    url: https://paidiver.github.io/annotations-api
+
+environments:
+  live:
+    values:
+      - name: live
+        context: seai-admin@seai
+        config: live/values.yaml
+
+helmDefaults:
+  # Limit the maximum number of revisions saved per release. Creates a secret per revision.
+  # We are currently limited to 8 secrets total in the namespace.
+  historyMax: 3
+---
+
+releases:
+  - name: {{ requiredEnv "RELEASE_NAME" }}
+    namespace: {{ requiredEnv "NAMESPACE"}}
+    createNamespace: false
+    chart: paidiver-annotations/api
+    version: 1.0.0
+    values:
+      - {{ .Environment.Values.config }}
+      - default/postgres.yaml
+      - default/api.yaml
+      - api:
+          image:
+            tag: latest
+            imagePullSecret: {{ requiredEnv "GHCR_SECRET_NAME" }}
+          env:
+            djangoSecretKey:
+              secretName: {{ requiredEnv "DJANGO_SECRET_NAME" }}
+      - postgresql:
+          auth:
+            enablePostgresUser: true
+            existingSecret: {{ requiredEnv "POSTGRES_SECRET_NAME"}}
+            username: {{ requiredEnv "POSTGRES_USER"}}
+            database: {{ requiredEnv "POSTGRES_DB"}}
+          primary:
+            persistence:
+              existingClaim: {{ requiredEnv "POSTGRES_PVC_NAME"}}
+      - global:
+          postgresql:
+            auth:
+              existingSecret: {{ requiredEnv "POSTGRES_SECRET_NAME" }}
+              postgresPassword:
+                valueFrom:
+                  secretKeyRef:
+                    name: {{ requiredEnv "POSTGRES_SECRET_NAME" }}
+                    key: postgres-password
+              password:
+                valueFrom:
+                  secretKeyRef:
+                    name: {{ requiredEnv "POSTGRES_SECRET_NAME" }}
+                    key: password
+
+    hooks:
+      - events: ["presync"]
+        showlogs: true
+        command: sh
+        args:
+          - -c
+          - >
+            echo "Checking required secret '$POSTGRES_SECRET_NAME' exists in namespace $NAMESPACE...";
+            kubectl get secret $POSTGRES_SECRET_NAME -n $NAMESPACE >/dev/null 2>&1 ||
+              (echo "ERROR: Required secret '$POSTGRES_SECRET_NAME' not found in namespace $NAMESPACE." && exit 1)
+      - events: ["presync"]
+        showlogs: true
+        command: sh
+        args:
+          - -c
+          - >
+            echo "Checking required secret '$GHCR_SECRET_NAME' exists in namespace $NAMESPACE...";
+            kubectl get secret $GHCR_SECRET_NAME -n $NAMESPACE >/dev/null 2>&1 ||
+              (echo "ERROR: Required secret '$GHCR_SECRET_NAME' not found in namespace $NAMESPACE." && exit 1);
+      - events: ["presync"]
+        showlogs: true
+        command: sh
+        args:
+          - -c
+          - >
+            echo "Checking required secret '$DJANGO_SECRET_NAME' exists in namespace $NAMESPACE...";
+            kubectl get secret $DJANGO_SECRET_NAME -n $NAMESPACE >/dev/null 2>&1 ||
+              (echo "ERROR: Required secret '$DJANGO_SECRET_NAME' not found in namespace $NAMESPACE." && exit 1);

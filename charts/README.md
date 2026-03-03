@@ -55,13 +55,7 @@ set +a
 ### 2. Set your Kubernetes context
 
    Make sure your shell points to the correct cluster.
-   The Kubeconfig file can be downloaded from the Rancher Dashboard for the cluster, then saved to your local machine.
 
-   ![Download Kubeconfig from Rancher](docs/images/download-kubeconfig.png)
-
-   ```bash
-   export KUBECONFIG=/path/to/kubeconfig
-   ```
    - Confirm that the output from the following command matches the intended cluster:
        ```bash
        kubectl config current-context
@@ -174,6 +168,34 @@ kubectl get secrets -n $NAMESPACE
     View job logs to confirm the job has succeeded and the directory is empty.
 
 ---
+
+
+### 4. Cluster Issuer for TLS certificates
+
+The cluster issuer is a cert-manager resource that defines how TLS certificates should be obtained for the API's ingress. This deployment uses Let's Encrypt as the certificate authority.
+
+1. **Check CLUSTER_ISSUER_NAME**
+
+   Ensure the value for CLUSTER_ISSUER_NAME in `.env` is set to your intended name or adjust as necessary.
+
+2. **Create Cluster Issuer**
+
+    ```bash
+    cluster_issuer_template=$(
+    sed \
+    -e "s/{{NAMESPACE}}/$NAMESPACE/g" \
+    -e "s/{{CLUSTER_ISSUER_NAME}}/$CLUSTER_ISSUER_NAME/g" \
+    utils/cluster-issuer.yaml
+    )
+    echo "$cluster_issuer_template" | kubectl apply -f -
+    ```
+
+3. **Confirm Cluster Issuer Creation**
+
+   ```bash
+   kubectl get clusterissuer -n $NAMESPACE
+   ```
+
 ### 4. Update Helm repositories
 
 Add the Paidiver chart repo and ensure Helm has the latest chart information:

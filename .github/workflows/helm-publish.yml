@@ -1,10 +1,15 @@
 name: Release Helm Charts
 
 on:
+  # push:
+  #   tags:
+  #     - 'v*'
   push:
-    tags:
-      - 'v*'
-
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
 jobs:
   release:
     permissions:

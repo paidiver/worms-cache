@@ -1,0 +1,45 @@
+# Default values for paidiver-annotations-api.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# This will set the replicaset count more information can be found here: https://kubernetes.io/docs/concepts/workloads/controllers/replicaset
+
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+api:
+  componentName: "worms-cache-api"
+  image:
+    repository: ghcr.io/paidiver/worms-cache
+    tag: latest
+    pullPolicy: Always
+  port: 8000
+  timeout: 300
+  workers: 1
+  service:
+    port: 8000
+  env:
+    djangoSecretKey:
+      secretName: ""
+      secretKey: django-secret-key
+    djangoDebug: "1"
+  securityContext:
+    runAsUser: 1000
+  initContainer:
+    securityContext:
+      runAsUser: 1000
+
+ingress:
+  enabled: true
+  api:
+    path: ""
+    pathType: Prefix
+  ingressClassName: nginx

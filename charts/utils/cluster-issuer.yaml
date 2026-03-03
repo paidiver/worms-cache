@@ -1,0 +1,16 @@
+# Cluster issuer for the cert manager
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: {{CLUSTER_ISSUER_NAME}}
+  namespace: {{NAMESPACE}}
+spec:
+  acme:
+    email: tobias.ferreira@noc.ac.uk
+    server: https://acme-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: {{CLUSTER_ISSUER_NAME}}
+    solvers:
+    - http01:
+        ingress:
+          class: nginx

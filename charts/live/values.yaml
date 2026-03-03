@@ -1,0 +1,17 @@
+replicaCount: 1
+
+ingress:
+  host: worms-cache.paidiverpy.site
+  path: ""
+
+api:
+  workers: 1
+
+postgresql:
+  primary:
+    persistence:
+      enabled: true
+      size: 2Gi
+    resources:
+      limits:
+        memory: 1Gi
