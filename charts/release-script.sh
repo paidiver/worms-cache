@@ -7,7 +7,7 @@ CHART_DIR="api"
 PAGES_BRANCH="gh-pages"
 CHART_REPO_URL="https://${OWNER}.github.io/${REPO}/"
 
-VERSION="0.0.2"
+VERSION="0.0.2-debug.$(date +%Y%m%d%H%M%S)"
 
 # Ensure tools exist
 command -v helm >/dev/null
