@@ -49,5 +49,7 @@ cr index \
   --owner "${OWNER}" \
   --git-repo "${REPO}" \
   --package-path .cr-release-packages \
-  --index-path index.yaml \
+  --remote origin \
+  --pages-branch gh-pages \
+  --pages-index-path index.yaml \
   --push
