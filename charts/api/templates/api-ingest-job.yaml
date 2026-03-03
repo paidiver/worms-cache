@@ -1,4 +1,12 @@
 {{- if .Values.ingestJob.enabled }}
+{{- $hook := "post-install" -}}
+{{- if .Values.ingestJob.runOnUpgrade -}}
+  {{- if .Values.ingestJob.runOnInstall -}}
+    {{- $hook = "post-install,post-upgrade" -}}
+  {{- else -}}
+    {{- $hook = "post-upgrade" -}}
+  {{- end -}}
+{{- end -}}
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -6,11 +14,7 @@ metadata:
   labels:
     {{- include "worms-cache-api.labels" . | nindent 4 }}
   annotations:
-    helm.sh/hook: {{- if .Values.ingestJob.runOnUpgrade -}}
-      {{- if .Values.ingestJob.runOnInstall -}} post-install,post-upgrade {{- else -}} post-upgrade {{- end -}}
-    {{- else -}}
-      {{- if .Values.ingestJob.runOnInstall -}} post-install {{- else -}} post-install {{- end -}}
-    {{- end }}
+    helm.sh/hook: {{ $hook | quote }}
     helm.sh/hook-weight: "0"
     helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
 spec:
