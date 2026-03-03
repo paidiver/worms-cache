@@ -1,16 +1,21 @@
-{{- if and .Values.refreshCron.enabled }}
+{{- if .Values.refreshCron.enabled }}
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: {{ include "paidiver-worms-cache-api.fullname" . }}-refresh
+  name: {{ include "worms-cache-api.fullname" . }}-refresh
+  labels:
+    {{- include "worms-cache-api.labels" . | nindent 4 }}
 spec:
-  schedule: "{{ .Values.refreshCron.schedule }}"
+  schedule: {{ .Values.refreshCron.schedule | quote }}
   jobTemplate:
     spec:
       backoffLimit: 2
       template:
         spec:
           restartPolicy: Never
+          securityContext:
+            {{- toYaml .Values.podSecurityContext | nindent 12 }}
+
           initContainers:
             - name: wait-for-postgres
               image: bitnami/postgresql@{{ .Values.postgresql.image.digest }}
@@ -19,15 +24,38 @@ spec:
                 - -ec
                 - |
                   echo "Waiting for PostgreSQL..."
-                  until pg_isready -h $POSTGRES_HOST -p $POSTGRES_PORT -U $POSTGRES_USER; do
+                  until pg_isready -h "$POSTGRES_HOST" -p "$POSTGRES_PORT" -U "$POSTGRES_USER"; do
                     sleep 2
                   done
-              env: {{ include "api.postgresEnv" . | nindent 16 }}
+              securityContext:
+                {{- toYaml .Values.api.initContainer.securityContext | nindent 16 }}
+                {{- toYaml .Values.containerSecurityContext | nindent 16 }}
+              env:
+                {{- include "api.postgresEnv" . | nindent 16 }}
+
           containers:
             - name: refresh
               image: "{{ .Values.api.image.repository }}:{{ .Values.api.image.tag }}"
               imagePullPolicy: {{ .Values.api.image.pullPolicy }}
+              securityContext:
+                runAsUser: {{ .Values.api.securityContext.runAsUser | default 1000 }}
+                runAsNonRoot: true
+                {{- toYaml .Values.containerSecurityContext | nindent 16 }}
               env:
-                {{ include "api.postgresEnv" . | nindent 16 }}
-              command: {{ toYaml .Values.refreshCron.args | nindent 16 }}
+                {{- include "api.postgresEnv" . | nindent 16 }}
+                - name: DJANGO_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.api.env.djangoSecretKey.secretName }}
+                      key: {{ .Values.api.env.djangoSecretKey.secretKey }}
+                - name: DJANGO_DEBUG
+                  value: {{ .Values.api.env.djangoDebug | quote }}
+              command:
+                {{- toYaml .Values.refreshCron.args | nindent 16 }}
+
+          {{- $pullSecret := .Values.api.image.imagePullSecret | default "" -}}
+          {{- if $pullSecret }}
+          imagePullSecrets:
+            - name: {{ $pullSecret }}
+          {{- end }}
 {{- end }}

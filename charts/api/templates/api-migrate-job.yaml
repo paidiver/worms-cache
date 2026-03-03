@@ -2,15 +2,11 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{ include "paidiver-worms-cache-api.fullname" . }}-migrate
+  name: {{ include "worms-cache-api.fullname" . }}-migrate
   labels:
-    {{- include "paidiver-worms-cache-api.labels" . | nindent 4 }}
+    {{- include "worms-cache-api.labels" . | nindent 4 }}
   annotations:
-    helm.sh/hook: {{- if .Values.migrateJob.runOnUpgrade -}}
-      {{- if .Values.migrateJob.runOnInstall -}} post-install,post-upgrade {{- else -}} post-upgrade {{- end -}}
-    {{- else -}}
-      {{- if .Values.migrateJob.runOnInstall -}} post-install {{- else -}} post-install {{- end -}}
-    {{- end }}
+    helm.sh/hook: "{{- if .Values.migrateJob.runOnUpgrade -}}{{- if .Values.migrateJob.runOnInstall -}}post-install,post-upgrade{{- else -}}post-upgrade{{- end -}}{{- else -}}{{- if .Values.migrateJob.runOnInstall -}}post-install{{- else -}}post-install{{- end -}}{{- end -}}"
     helm.sh/hook-weight: "-1"
     helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
 spec:

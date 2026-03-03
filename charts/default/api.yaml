@@ -1,4 +1,4 @@
-# Default values for paidiver-annotations-api.
+# Default values for worms-cache-api.
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
@@ -43,3 +43,7 @@ ingress:
     path: ""
     pathType: Prefix
   ingressClassName: nginx
+  tls:
+    - secretName: letsencrypt-worms-cache
+      hosts:
+        - worms-cache.paidiverpy.site
