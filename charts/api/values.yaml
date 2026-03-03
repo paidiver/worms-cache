@@ -43,10 +43,7 @@ ingress:
     pathType: Prefix
   ingressClassName: ""
   host: ""
-  tls:
-   - secretName: ""
-     hosts:
-       - ""
+  tls: []
 nameOverride: ""
 fullnameOverride: ""
 
@@ -97,9 +94,9 @@ migrateJob:
     imagePullSecret: ""
 
 ingestJob:
-  enabled: true
+  enabled: false
   runOnInstall: true
-  runOnUpgrade: true
+  runOnUpgrade: false
   image:
     repository: ghcr.io/paidiver/worms-cache
     tag: latest
