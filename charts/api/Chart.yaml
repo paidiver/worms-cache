@@ -2,13 +2,12 @@ apiVersion: v2
 name: api
 description: A database and API for imagery metadata and worms-cache
 type: application
-version: 0.0.0-dev
-appVersion: 0.0.0-dev
+version: 0.0.2-debug.20260303140305
+appVersion: 0.0.2-debug.20260303140305
 maintainers:
   - name: tobfer
     email: tobias.ferreira@noc.ac.uk
     url: bodc.ac.uk
-
 dependencies:
   - name: postgresql
     version: 18.2.4

@@ -9,3 +9,5 @@ coverage_reports
 data/*
 
 .idea/
+charts/.cr-release-packages/
+charts/.cr-index/

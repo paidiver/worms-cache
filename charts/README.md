@@ -1,16 +1,19 @@
-# PAIDIVER Annotations API deployment
+# PAIDIVER Worms Cache API deployment
 
-The PAIDIVER Annotations API provides a database-backed REST API for working with image metadata, with a focus on annotations for underwater imagery.
+The PAIDIVER Worms Cache API provides a database-backed REST API for caching and querying WoRMS taxonomic data. This document outlines the steps to deploy the application using Helm and Helmfile on a Kubernetes cluster.
 
 The application source code and Helm charts are hosted under
-https://github.com/paidiver/annotations-api
+https://github.com/paidiver/worms-cache.
 
 These instructions guide you through deploying the application using Helm and Helmfile. They assume a Kubernetes cluster is already available and accessible.
+
+> IMPORTANT: All the commands in this section are running on the `charts` directory, so make sure to `cd charts` before running the commands.
 
 ---
 ## Table of Contents
 
 - [Prerequisites](#prerequisites)
+- [Helm Charts configuration](#helm-charts-configuration)
 - [Deployment Steps: New Deployment](#deployment-steps---new-deployment)
 - [Connecting to Postgres](#connect-to-postgres)
 - [Deployment Steps: Upgrade Deployment](#deployment-steps---upgrade-deployment)
@@ -29,6 +32,81 @@ Before deploying, ensure the following tools are installed and available in your
 
 ---
 
+## Helm Charts configuration
+
+The [charts/api](api) directory contains Helm charts that can be used to deploy this app.
+
+### Helm Chart Versioning & Release Process
+
+Helm chart releases are automated and driven by Git tags.
+
+To release a new Helm Chart version, create a Git tag in the format:
+
+`vMAJOR.MINOR.PATCH[-PRERELEASE]`
+
+Examples:
+- `v1.2.3` → stable release
+- `v1.3.0-alpha.1` → prerelease
+
+The workflow triggers on tag creation.
+The CI workflow:
+
+- Reads the tag version (1.2.3 from v1.2.3)
+- Patches charts/api/Chart.yaml at package time (does not commit to the repo)
+- Packages the Helm chart with the correct version
+- Publishes the chart via [helm/chart-releaser-action](https://github.com/helm/chart-releaser-action)
+
+The repo itself continues to have 0.0.0-dev in Chart.yaml for development.
+The release version is derived solely from the Git tag.
+
+### Usage
+
+[Helm](https://helm.sh) must be installed to use the charts.  Please refer to
+Helm's [documentation](https://helm.sh/docs) to get started.
+
+Once Helm has been set up correctly, add the repo as follows:
+
+```bash
+helm repo add worms-cache https://paidiver.github.io/worms-cache
+```
+
+If you had already added this repo earlier, run `helm repo update` to retrieve
+the latest versions of the packages.  You can then run `helm search repo
+worms-cache` to see the charts.
+
+To install the api chart:
+
+```bash
+helm install my-api worms-cache/api
+```
+
+To uninstall the chart:
+
+```bash
+helm uninstall my-api
+```
+
+### Release Charts outside of CI
+
+For local testing, you can run the release script in `charts/release-script.sh` to package and publish charts manually. This script uses the `cr` CLI tool to upload packages to GitHub Releases and update the Helm repo index. First, you need to install `cr` and `yq` and authenticate with GitHub:
+
+```bash
+brew install yq
+brew install chart-releaser
+export CR_TOKEN=your_github_pat
+```
+
+Then you can run the release script:
+
+```bash
+cd charts
+bash release-script.sh
+```
+
+This will package the chart, upload it to GitHub Releases, and update the Helm repo index. The script is designed to be idempotent and can be run multiple times without creating duplicate releases.
+
+---
+
 ## Deployment Steps - New Deployment
 
 ### ⚠️ Git Bash or a Linux shell are required to run the commands below.
@@ -39,9 +117,9 @@ Before deploying, ensure the following tools are installed and available in your
 2. Rename the copy `.env`
 3. Check the preset values
 4. Fill in the required passwords:
-   1. **GHCR_TOKEN**: GitHub access token (bodcsoft user) found in OnePassword under `DSG_BODC_EXTERNAL_TOOLS`. Search for "GitHub Container Registry access for Paidiver Annotations API".
-   2. **POSTGRES_PASSWORD**: Found in OnePassword under `DSG_BODC_GENERIC`. Search for "PAIDIVER DEV Postgres annotations user password".
-   3. **POSTGRES_SUPERUSER_PASSWORD**: Found in OnePassword under `DSG_BODC_GENERIC`. Search for "PAIDIVER DEV Postgres admin user password".
+   1. **GHCR_TOKEN**: GitHub access token (bodcsoft user) found in OnePassword under `DSG_BODC_EXTERNAL_TOOLS`. Search for "GitHub Container Registry access for Paidiver Worms Cache API".
+   2. **POSTGRES_PASSWORD**: Found in OnePassword under `DSG_BODC_GENERIC`. Search for "PAIDIVER DEV Postgres worms-cache user password".
+   3. **POSTGRES_SUPERUSER_PASSWORD**: Found in OnePassword under `DSG_BODC_GENERIC`. Search for "PAIDIVER DEV Postgres worms-cache admin user password".
    4. **DJANGO_SECRET_KEYFound** in OnePassword under `DSG_BODC_GENERIC`. Search for "PAIDIVER DEV Django secret key".
 
 ### 2. Source the .env file
@@ -52,7 +130,7 @@ source .env
 set +a
 ```
 
-### 2. Set your Kubernetes context
+### 3. Set your Kubernetes context
 
    Make sure your shell points to the correct cluster.
 
@@ -68,7 +146,7 @@ set +a
 
 ---
 
-### 3. Create deployment secrets
+### 4. Create deployment secrets
 
    The deployment requires the following Kubernetes secrets:
    - **GitHub image pull secret** – used to pull container images from private repositories.
@@ -201,17 +279,17 @@ The cluster issuer is a cert-manager resource that defines how TLS certificates 
 Add the Paidiver chart repo and ensure Helm has the latest chart information:
 
    ```bash
-   helm repo add paidiver-annotations https://paidiver.github.io/annotations-api
+   helm repo add worms-cache https://paidiver.github.io/worms-cache
    helm repo update
    ```
 ### 5. Set chart version in Helmfile
 
 Open the [helmfile.yaml.gotmpl](helmfile.yaml.gotmpl) and ensure the `releases.version` field matches the intended chart version.
 
-The version is derived from Git tags on the [PAIDIVER annotations API](https://github.com/paidiver/annotations-api) repo,
+The version is derived from Git tags on the [PAIDIVER Worms Cache API](https://github.com/paidiver/worms-cache) repo,
 or check the latest version by running
 ```bash
-helm search repo -l paidiver-annotations
+helm search repo -l worms-cache
 ```
 ---
 ### 6. Set Docker image version in Helmfile
@@ -234,9 +312,9 @@ helmfile -e {env} apply
 Check the Postgres pod logs that the required user and database have been created.
 ```
 postgresql 16:41:30.55 INFO  ==> Changing password of postgres
-postgresql 16:41:30.75 INFO  ==> Creating user annotations
-postgresql 16:41:31.04 INFO  ==> Granting access to "annotations" to the database "annotations"
-postgresql 16:41:31.34 INFO  ==> Setting ownership for the 'public' schema database "annotations" to "annotations"
+postgresql 16:41:30.75 INFO  ==> Creating user worms_cache
+postgresql 16:41:31.04 INFO  ==> Granting access to "worms_cache" to the database "worms_cache"
+postgresql 16:41:31.34 INFO  ==> Setting ownership for the 'public' schema database "worms_cache" to "worms_cache"
 ```
 
 #### ⚠️ Note for new deployments/redeployments after teardown:
@@ -295,7 +373,7 @@ List pods in the namespace and locate your Postgres pod:
 kubectl get pods -n $NAMESPACE
 ```
 
-Identify the pod name, e.g., `annotations-api-postgresql-0`.
+Identify the pod name, e.g., `worms-cache-api-postgresql-0`.
 
 #### 3. Locate the Postgres admin user password
 
@@ -310,7 +388,7 @@ kubectl -n $NAMESPACE get secrets/$POSTGRES_SECRET_NAME -o jsonpath="{.data.post
 Use `kubectl port-forward` to access Postgres locally (replace pod name if necessary):
 
 ```bash
-kubectl port-forward -n $NAMESPACE pod/annotations-api-postgresql-0 5432:5432
+kubectl port-forward -n $NAMESPACE pod/worms-cache-api-postgresql-0 5432:5432
 ```
 This forwards the remote Postgres port 5432 to your local machine on `localhost:5432.
 Keep this terminal open while you connect.
@@ -384,17 +462,17 @@ The Kubeconfig file can be downloaded from the Rancher Dashboard for the cluster
 Add the Paidiver chart repo and ensure Helm has the latest chart information:
 
    ```bash
-   helm repo add paidiver-annotations https://paidiver.github.io/annotations-api
+   helm repo add worms-cache https://paidiver.github.io/worms-cache
    helm repo update
    ```
 ### 6. Set chart version in Helmfile
 
 Open the [helmfile.yaml.gotmpl](helmfile.yaml.gotmpl) and ensure the `releases.version` field matches the intended chart version.
 
-The version is derived from Git tags on the [PAIDIVER annotations API](https://github.com/paidiver/annotations-api) repo,
+The version is derived from Git tags on the [PAIDIVER Worms Cache API](https://github.com/paidiver/worms-cache) repo,
 or check the latest version by running
 ```bash
-helm search repo -l paidiver-annotations
+helm search repo -l worms-cache
 ```
 ---
 ### 7. Set Docker image version in Helmfile

@@ -1,7 +1,7 @@
 replicaCount: 1
 
 ingress:
-  host: worms-cache.paidiverpy.site
+  host: worms-cache.paidiver.site
   path: ""
 
 api:

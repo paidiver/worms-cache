@@ -1,16 +1,20 @@
 {{- if .Values.ingestJob.enabled }}
+{{- $hook := "post-install" -}}
+{{- if .Values.ingestJob.runOnUpgrade -}}
+  {{- if .Values.ingestJob.runOnInstall -}}
+    {{- $hook = "post-install,post-upgrade" -}}
+  {{- else -}}
+    {{- $hook = "post-upgrade" -}}
+  {{- end -}}
+{{- end -}}
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{ include "paidiver-worms-cache-api.fullname" . }}-ingest
+  name: {{ include "worms-cache-api.fullname" . }}-ingest
   labels:
-    {{- include "paidiver-worms-cache-api.labels" . | nindent 4 }}
+    {{- include "worms-cache-api.labels" . | nindent 4 }}
   annotations:
-    helm.sh/hook: {{- if .Values.ingestJob.runOnUpgrade -}}
-      {{- if .Values.ingestJob.runOnInstall -}} post-install,post-upgrade {{- else -}} post-upgrade {{- end -}}
-    {{- else -}}
-      {{- if .Values.ingestJob.runOnInstall -}} post-install {{- else -}} post-install {{- end -}}
-    {{- end }}
+    helm.sh/hook: {{ $hook | quote }}
     helm.sh/hook-weight: "0"
     helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
 spec:
@@ -39,6 +43,13 @@ spec:
         - name: ingest
           image: "{{ .Values.ingestJob.image.repository }}:{{ .Values.ingestJob.image.tag }}"
           imagePullPolicy: {{ .Values.ingestJob.image.pullPolicy }}
+          securityContext:
+            runAsUser: 1000
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           env:
             {{ include "api.postgresEnv" . | nindent 12 }}
             - name: DJANGO_SECRET_KEY
@@ -54,6 +65,6 @@ spec:
             - |
               python manage.py migrate
               python manage.py ingest_worms \
-                --file {{ .Values.ingestJob.aphiaIdsFile }} \
-                {{- if .Values.ingestJob.addRanks }} --add-ranks {{- end }}
+                --file {{ .Values.ingestJob.aphiaIdsFile | quote }}{{ if .Values.ingestJob.addRanks }} \
+                --add-ranks{{ end }}
 {{- end }}
