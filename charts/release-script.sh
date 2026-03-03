@@ -6,6 +6,7 @@ CHART_DIR="api"
 
 PAGES_BRANCH="gh-pages"
 CHART_REPO_URL="https://${OWNER}.github.io/${REPO}/"
+CR_TOKEN="${GHCR_TOKEN:-}"
 
 VERSION="0.0.2-debug.$(date +%Y%m%d%H%M%S)"
 
