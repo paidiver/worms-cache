@@ -48,7 +48,6 @@ git checkout "${PAGES_BRANCH}" 2>/dev/null || git checkout -b "${PAGES_BRANCH}"
 cr index \
   --owner "${OWNER}" \
   --git-repo "${REPO}" \
-  --charts-repo "${CHART_REPO_URL}" \
   --package-path .cr-release-packages \
   --index-path index.yaml \
   --push
