@@ -44,6 +44,8 @@ ingress:
   ingressClassName: ""
   host: ""
   tls: []
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-worms-cache
 nameOverride: ""
 fullnameOverride: ""
 
