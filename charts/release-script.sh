@@ -10,30 +10,24 @@ export CR_TOKEN="${GHCR_TOKEN}"
 
 VERSION="0.0.2-debug.$(date +%Y%m%d%H%M%S)"
 
-# Ensure tools exist
 command -v helm >/dev/null
 command -v cr >/dev/null
 command -v yq >/dev/null
 
-# 0) Add dependency repos (match CI)
 helm repo add bitnami https://charts.bitnami.com/bitnami >/dev/null 2>&1 || true
 helm repo update >/dev/null
 
-# 1) Update Chart.yaml
 yq -i ".version = \"${VERSION}\"" "${CHART_DIR}/Chart.yaml"
 yq -i ".appVersion = \"${VERSION}\"" "${CHART_DIR}/Chart.yaml"
 
-# 2) Build deps
 helm dependency build "${CHART_DIR}"
 
-# 3) Lint/package
 rm -rf .cr-release-packages .cr-index
 mkdir -p .cr-release-packages
 
 helm lint "${CHART_DIR}"
 helm package "${CHART_DIR}" --destination .cr-release-packages
 
-# 4) Upload package(s) to GitHub Releases
 : "${CR_TOKEN:?CR_TOKEN is not set. Export a GitHub PAT as CR_TOKEN.}"
 
 cr upload \
@@ -42,7 +36,6 @@ cr upload \
   --package-path .cr-release-packages \
   --skip-existing
 
-# 5) Update index.yaml on the pages branch and push it
 git fetch origin "${PAGES_BRANCH}"
 git branch -f "${PAGES_BRANCH}" "origin/${PAGES_BRANCH}"
 
