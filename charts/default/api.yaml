@@ -46,4 +46,4 @@ ingress:
   tls:
     - secretName: letsencrypt-worms-cache
       hosts:
-        - worms-cache.paidiverpy.site
+        - worms-cache.paidiver.site
