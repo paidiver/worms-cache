@@ -2,7 +2,7 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: {{ include "paidiver-worms-cache-api.fullname" . }}-refresh
+  name: {{ include "worms-cache-api.fullname" . }}-refresh
 spec:
   schedule: "{{ .Values.refreshCron.schedule }}"
   jobTemplate:

@@ -13,5 +13,6 @@ spec:
   resources:
     requests:
       storage: {{POSTGRES_PVC_SIZE}}
-  storageClassName: scale-nocacuk-bodc2
+  storageClassName: csi-cinder
+  # storageClassName: scale-nocacuk-bodc2
   volumeMode: Filesystem

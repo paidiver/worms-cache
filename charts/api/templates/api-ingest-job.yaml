@@ -2,9 +2,9 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{ include "paidiver-worms-cache-api.fullname" . }}-ingest
+  name: {{ include "worms-cache-api.fullname" . }}-ingest
   labels:
-    {{- include "paidiver-worms-cache-api.labels" . | nindent 4 }}
+    {{- include "worms-cache-api.labels" . | nindent 4 }}
   annotations:
     helm.sh/hook: {{- if .Values.ingestJob.runOnUpgrade -}}
       {{- if .Values.ingestJob.runOnInstall -}} post-install,post-upgrade {{- else -}} post-upgrade {{- end -}}
