@@ -7,10 +7,13 @@ https://github.com/paidiver/worms-cache.
 
 These instructions guide you through deploying the application using Helm and Helmfile. They assume a Kubernetes cluster is already available and accessible.
 
+> IMPORTANT: All the commands in this section are running on the `charts` directory, so make sure to `cd charts` before running the commands.
+
 ---
 ## Table of Contents
 
 - [Prerequisites](#prerequisites)
+- [Helm Charts configuration](#helm-charts-configuration)
 - [Deployment Steps: New Deployment](#deployment-steps---new-deployment)
 - [Connecting to Postgres](#connect-to-postgres)
 - [Deployment Steps: Upgrade Deployment](#deployment-steps---upgrade-deployment)
@@ -97,7 +100,7 @@ Then you can run the release script:
 
 ```bash
 cd charts
-./release-script.sh
+bash release-script.sh
 ```
 
 This will package the chart, upload it to GitHub Releases, and update the Helm repo index. The script is designed to be idempotent and can be run multiple times without creating duplicate releases.
