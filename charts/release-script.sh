@@ -45,6 +45,8 @@ cr upload \
 git fetch origin "${PAGES_BRANCH}"
 git branch -f "${PAGES_BRANCH}" "origin/${PAGES_BRANCH}"
 
+rm -rf .cr-index
+
 cr index \
   --owner "${OWNER}" \
   --git-repo "${REPO}" \
