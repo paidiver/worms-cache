@@ -97,9 +97,9 @@ migrateJob:
     imagePullSecret: ""
 
 ingestJob:
-  enabled: false
+  enabled: true
   runOnInstall: true
-  runOnUpgrade: false
+  runOnUpgrade: true
   image:
     repository: ghcr.io/paidiver/worms-cache
     tag: latest
@@ -109,6 +109,6 @@ ingestJob:
   addRanks: true
 
 refreshCron:
-  enabled: false
+  enabled: true
   schedule: "0 3 * * *"
   args: ["python", "manage.py", "refresh_worms", "--cache-ttl", "2"]
