@@ -14,7 +14,7 @@ env:
 
 jobs:
   test-build:
-    name: Build image + run Ruby tests
+    name: Build and Test Taxamatch image
     runs-on: ubuntu-latest
     permissions:
       contents: read

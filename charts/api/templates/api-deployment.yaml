@@ -56,6 +56,8 @@ spec:
               value: localhost,127.0.0.1,0.0.0.0,{{ .Values.ingress.host }}
             - name: TAXAMATCH_URL
               value: "{{ .Values.api.env.taxamatchUrl }}"
+            - name: WORMS_API_BASE_URL
+              value: "{{ .Values.api.env.wormsApiBaseUrl }}"
             {{ include "api.postgresEnv" . | nindent 12 }}
           command:
             - sh

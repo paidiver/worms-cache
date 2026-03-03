@@ -1,0 +1,45 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: purge-volume
+  namespace: {{NAMESPACE}}
+  annotations:
+    target-pvc: &target-pvc {{POSTGRES_PVC_NAME}}
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        # We need to run this job as a user with permissions to delete all files in the volume.
+        runAsUser: 65534  # Nobody
+        runAsGroup: 65534  # Nogroup
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: busybox
+          image: busybox:latest
+          stdin: true
+          tty: true
+          command:
+            - "/bin/sh"
+            - "-c"
+          args:
+            - "set -xe && ls -lsarth /target-volume && rm -rf $(find /target-volume -maxdepth 1 -mindepth 1 | xargs echo) && ls -lsarth /target-volume"
+          volumeMounts:
+            - name: target-volume
+              mountPath: /target-volume
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            limits:
+              cpu: 50m
+      volumes:
+        - name: target-volume
+          persistentVolumeClaim:
+            claimName: *target-pvc
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 300

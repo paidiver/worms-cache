@@ -92,7 +92,6 @@ DJANGO_SECRET_KEY=dev-secret-key-change-me
 DJANGO_DEBUG=1
 DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,0.0.0.0
 WORMS_API_BASE_URL=https://marinespecies.org/rest
-CACHED_WORMS_API_BASE_URL=https://marinespecies.org/rest
 TAXAMATCH_URL=http://taxamatch:8080
 ```
 
