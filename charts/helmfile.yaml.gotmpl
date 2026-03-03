@@ -19,8 +19,8 @@ releases:
   - name: {{ requiredEnv "RELEASE_NAME" }}
     namespace: {{ requiredEnv "NAMESPACE"}}
     createNamespace: false
-    chart: paidiver-annotations/api
-    version: 1.0.0
+    chart: worms-cache/api
+    version: {{ env "CHART_VERSION" | default "0.0.2" | quote }}
     values:
       - {{ .Environment.Values.config }}
       - default/postgres.yaml

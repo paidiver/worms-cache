@@ -55,7 +55,7 @@ spec:
             - name: DJANGO_ALLOWED_HOSTS
               value: localhost,127.0.0.1,0.0.0.0,{{ .Values.ingress.host }}
             - name: TAXAMATCH_URL
-              value: "{{ .Values.api.env.taxamatchUrl }}"
+              value: {{ default (printf "http://%s-taxamatch-service:8080" .Release.Name) .Values.api.env.taxamatchUrl | quote }}
             - name: WORMS_API_BASE_URL
               value: "{{ .Values.api.env.wormsApiBaseUrl }}"
             {{ include "api.postgresEnv" . | nindent 12 }}

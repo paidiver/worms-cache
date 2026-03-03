@@ -28,7 +28,7 @@ api:
       secretName: my-app-secrets
       secretKey: django-secret-key
     djangoDebug: "1"
-    taxamatchUrl: "http://{{ .Release.Name }}-taxamatch-service:8080"
+    taxamatchUrl: ""
     wormsApiBaseUrl: "https://marinespecies.org/rest"
   securityContext:
     runAsUser: 1000

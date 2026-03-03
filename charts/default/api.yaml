@@ -43,3 +43,7 @@ ingress:
     path: ""
     pathType: Prefix
   ingressClassName: nginx
+  tls:
+    - secretName: letsencrypt-paidiver-api-tls
+      hosts:
+        - worms-cache.paidiverpy.site
