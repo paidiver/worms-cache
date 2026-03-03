@@ -2,6 +2,24 @@ apiVersion: v1
 entries:
   api:
   - apiVersion: v2
+    appVersion: 0.0.3
+    created: "2026-03-03T14:26:27.855684935Z"
+    dependencies:
+    - name: postgresql
+      repository: https://charts.bitnami.com/bitnami
+      version: 18.2.4
+    description: A database and API for imagery metadata and worms-cache
+    digest: 7a0d1a72d0ed0e4dd4a0cdcb01252c7914cdb067b17a913c9b8ec02030547c07
+    maintainers:
+    - email: tobias.ferreira@noc.ac.uk
+      name: tobfer
+      url: bodc.ac.uk
+    name: api
+    type: application
+    urls:
+    - https://github.com/paidiver/worms-cache/releases/download/api-0.0.3/api-0.0.3.tgz
+    version: 0.0.3
+  - apiVersion: v2
     appVersion: 0.0.2
     created: "2026-03-03T10:39:23.30146696Z"
     dependencies:
@@ -127,4 +145,4 @@ entries:
     urls:
     - https://github.com/paidiver/worms-cache/releases/download/api-0.0.2-debug.20260303122308/api-0.0.2-debug.20260303122308.tgz
     version: 0.0.2-debug.20260303122308
-generated: "2026-03-03T14:03:18.714751743Z"
+generated: "2026-03-03T14:26:27.855729043Z"
