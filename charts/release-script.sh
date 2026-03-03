@@ -42,8 +42,8 @@ cr upload \
   --skip-existing
 
 # 5) Update index.yaml on the pages branch and push it
-git fetch origin "${PAGES_BRANCH}:${PAGES_BRANCH}" || true
-git checkout "${PAGES_BRANCH}" 2>/dev/null || git checkout -b "${PAGES_BRANCH}"
+git fetch origin "${PAGES_BRANCH}"
+git branch -f "${PAGES_BRANCH}" "origin/${PAGES_BRANCH}"
 
 cr index \
   --owner "${OWNER}" \
