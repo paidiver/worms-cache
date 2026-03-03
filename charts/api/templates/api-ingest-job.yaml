@@ -43,6 +43,13 @@ spec:
         - name: ingest
           image: "{{ .Values.ingestJob.image.repository }}:{{ .Values.ingestJob.image.tag }}"
           imagePullPolicy: {{ .Values.ingestJob.image.pullPolicy }}
+          securityContext:
+            runAsUser: 1000
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           env:
             {{ include "api.postgresEnv" . | nindent 12 }}
             - name: DJANGO_SECRET_KEY
@@ -58,6 +65,6 @@ spec:
             - |
               python manage.py migrate
               python manage.py ingest_worms \
-                --file {{ .Values.ingestJob.aphiaIdsFile }} \
-                {{- if .Values.ingestJob.addRanks }} --add-ranks {{- end }}
+                --file {{ .Values.ingestJob.aphiaIdsFile | quote }}{{ if .Values.ingestJob.addRanks }} \
+                --add-ranks{{ end }}
 {{- end }}
