@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 set -euo pipefail
 
 OWNER="paidiver"
@@ -43,12 +44,13 @@ git fetch origin "${PAGES_BRANCH}"
 
 rm -rf .cr-index
 mkdir -p .cr-index
+
 cr index \
   --owner "${OWNER}" \
   --git-repo "${REPO}" \
   --package-path .cr-release-packages \
   --remote origin \
-  --pages-branch gh-pages \
-  --pages-index-path index.yaml \
+  --pages-branch "${PAGES_BRANCH}" \
+  --pages-index-path index.yaml
 
-git -C .cr-index push --force-with-lease origin HEAD:refs/heads/"${PAGES_BRANCH}"
+# git -C .cr-index push --force-with-lease origin HEAD:refs/heads/"${PAGES_BRANCH}"
