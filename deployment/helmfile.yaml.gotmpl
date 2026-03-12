@@ -32,6 +32,8 @@ releases:
           env:
             djangoSecretKey:
               secretName: {{ requiredEnv "DJANGO_SECRET_NAME" }}
+            ingestApiToken:
+              secretName: {{ requiredEnv "DJANGO_SECRET_NAME" }}
       - postgresql:
           auth:
             enablePostgresUser: true
