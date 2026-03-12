@@ -19,7 +19,7 @@ curl -X POST "$API_BASE/api/taxa/ingest/" \
   -d '{"aphia_id": 12345}'
 ```
 
-If the AphiaID is successfully ingested, you will receive a response with the taxon data and a 202 Accepted status. If the AphiaID is already in the database or invalid, you will get a 400 Bad Request response with an error message.
+If the AphiaID is successfully ingested, you will receive a response with the taxon data and a 202 Accepted status. If the AphiaID is invalid, you will get a 400 Bad Request response with an error message. If the AphiaID already exists in the database, you will receive a 200 OK response with the existing taxon data.
 
 ### List
 
