@@ -34,7 +34,7 @@ Before deploying, ensure the following tools are installed and available in your
 
 ## Helm Charts configuration
 
-The [charts/api](api) directory contains Helm charts that can be used to deploy this app.
+The [deployment/charts](charts) directory contains Helm charts that can be used to deploy this app.
 
 ### Helm Chart Versioning & Release Process
 
@@ -52,7 +52,7 @@ The workflow triggers on tag creation.
 The CI workflow:
 
 - Reads the tag version (1.2.3 from v1.2.3)
-- Patches charts/api/Chart.yaml at package time (does not commit to the repo)
+- Patches deployment/charts/Chart.yaml at package time (does not commit to the repo)
 - Packages the Helm chart with the correct version
 - Publishes the chart via [helm/chart-releaser-action](https://github.com/helm/chart-releaser-action)
 
