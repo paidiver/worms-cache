@@ -120,7 +120,8 @@ This will package the chart, upload it to GitHub Releases, and update the Helm r
    1. **GHCR_TOKEN**: GitHub access token (bodcsoft user) found in OnePassword under `DSG_BODC_EXTERNAL_TOOLS`. Search for "GitHub Container Registry access for Paidiver Worms Cache API".
    2. **POSTGRES_PASSWORD**: Found in OnePassword under `DSG_BODC_GENERIC`. Search for "PAIDIVER DEV Postgres worms-cache user password".
    3. **POSTGRES_SUPERUSER_PASSWORD**: Found in OnePassword under `DSG_BODC_GENERIC`. Search for "PAIDIVER DEV Postgres worms-cache admin user password".
-   4. **DJANGO_SECRET_KEYFound** in OnePassword under `DSG_BODC_GENERIC`. Search for "PAIDIVER DEV Django secret key".
+   4. **DJANGO_SECRET_KEY**: Found in OnePassword under `DSG_BODC_GENERIC`. Search for "PAIDIVER DEV Django secret key".
+   5. **INGEST_API_TOKEN**: Found in OnePassword under `DSG_BODC_GENERIC`. Search for "PAIDIVER DEV Ingest API token".
 
 ### 2. Source the .env file
 
@@ -151,7 +152,8 @@ set +a
    The deployment requires the following Kubernetes secrets:
    - **GitHub image pull secret** – used to pull container images from private repositories.
    - **Postgres credentials secret** – contains database passwords.
-   - **Django secret key**
+   - **Django secret key** – used by Django for cryptographic signing.
+   - **Ingest API token** – used to authenticate requests to the cache ingestion endpoint.
 
 Check if secrets exist:
 ```bash
@@ -190,6 +192,7 @@ If the secrets don't exist, create them.
     -e "s/{{NAMESPACE}}/$NAMESPACE/g" \
     -e "s/{{DJANGO_SECRET_NAME}}/$DJANGO_SECRET_NAME/g" \
     -e "s/{{DJANGO_SECRET_KEY}}/$DJANGO_SECRET_KEY/g" \
+    -e "s/{{INGEST_API_TOKEN}}/$INGEST_API_TOKEN/g" \
     utils/django-secret.yaml
     )
     echo "$django_secret_template" | kubectl apply -f -

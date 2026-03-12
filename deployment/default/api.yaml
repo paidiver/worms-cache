@@ -30,6 +30,9 @@ api:
     djangoSecretKey:
       secretName: ""
       secretKey: django-secret-key
+    ingestApiToken:
+      secretName: ""
+      secretKey: ingest-api-token
     djangoDebug: "1"
   securityContext:
     runAsUser: 1000

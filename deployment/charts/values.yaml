@@ -29,6 +29,7 @@ api:
       secretKey: django-secret-key
     djangoDebug: "1"
     taxamatchUrl: ""
+    ingestApiToken: ""
     wormsApiBaseUrl: "https://marinespecies.org/rest"
   securityContext:
     runAsUser: 1000
