@@ -2,6 +2,7 @@
 
 from unittest.mock import MagicMock, patch
 
+from django.contrib.auth.models import User
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -491,3 +492,64 @@ class TaxonViewSetTests(APITestCase):
     def test_handle_scientific_name_input_strips(self):
         """Test that the function strips leading and trailing whitespace from the input name."""
         self.assertEqual(_handle_scientific_name_input("  gadus morhua  "), "Gadus morhua")
+
+
+class IngestAphiaIdViewTests(APITestCase):
+    """Tests for the ingest AphiaID endpoint."""
+
+    def setUp(self):
+        """Set up test data and a test user for authentication."""
+        self.user = User.objects.create_user(username="testuser", password="testpassword")
+
+    def ingest_url(self) -> str:
+        """Return the URL for the ingest endpoint.
+
+        Returns:
+            str: The URL for the ingest endpoint.
+        """
+        return reverse("taxa-ingest")
+
+    @patch("api.views.taxon.IngestAphiaId")
+    def test_ingest_returns_202_when_authenticated(self, mock_ingest_class: MagicMock):
+        """Test that authenticated POST to ingest endpoint returns 202 with ingested taxa.
+
+        Args:
+            mock_ingest_class: The mocked IngestAphiaId class to control its behavior in the test.
+        """
+        mock_taxon = MagicMock()
+        mock_taxon.aphia_id = 12345
+        mock_taxon.scientific_name = "Gadus morhua"
+        mock_taxon.rank = "Species"
+        mock_taxon.status = "accepted"
+        mock_taxon.source_url = None
+        mock_taxon.worms_modified = None
+        mock_taxon.cached_at = None
+        mock_taxon.valid_taxon = None
+        mock_taxon.parent = None
+
+        mock_instance = MagicMock()
+        mock_instance.ingest_aphia_id.return_value = [mock_taxon]
+        mock_ingest_class.return_value = mock_instance
+
+        self.client.force_authenticate(user=self.user)
+        resp = self.client.post(self.ingest_url(), {"aphia_id": 12345}, format="json")
+        self.assertEqual(resp.status_code, status.HTTP_202_ACCEPTED)
+        mock_ingest_class.assert_called_once_with(aphia_ids={12345})
+        mock_instance.ingest_aphia_id.assert_called_once_with(12345)
+
+    def test_ingest_returns_401_when_unauthenticated(self):
+        """Test that unauthenticated POST to ingest endpoint returns 401."""
+        resp = self.client.post(self.ingest_url(), {"aphia_id": 12345}, format="json")
+        self.assertEqual(resp.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_ingest_returns_400_for_invalid_aphia_id(self):
+        """Test that POST to ingest endpoint with invalid aphia_id returns 400."""
+        self.client.force_authenticate(user=self.user)
+        resp = self.client.post(self.ingest_url(), {"aphia_id": -1}, format="json")
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_ingest_returns_400_when_aphia_id_missing(self):
+        """Test that POST to ingest endpoint without aphia_id returns 400."""
+        self.client.force_authenticate(user=self.user)
+        resp = self.client.post(self.ingest_url(), {}, format="json")
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
