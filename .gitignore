@@ -9,5 +9,5 @@ coverage_reports
 data/*
 
 .idea/
-deployment/.cr-release-packages/
-deployment/.cr-index/
+**/.cr-release-packages/
+**/.cr-index/
