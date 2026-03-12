@@ -58,6 +58,11 @@ spec:
               value: {{ default (printf "http://%s-taxamatch-service:8080" .Release.Name) .Values.api.env.taxamatchUrl | quote }}
             - name: WORMS_API_BASE_URL
               value: "{{ .Values.api.env.wormsApiBaseUrl }}"
+            - name: INGEST_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.api.env.ingestApiToken.secretName }}
+                  key: {{ .Values.api.env.ingestApiToken.secretKey }}
             {{ include "api.postgresEnv" . | nindent 12 }}
           command:
             - sh
