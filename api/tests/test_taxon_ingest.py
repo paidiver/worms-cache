@@ -64,15 +64,39 @@ class IngestAphiaIdViewTests(APITestCase):
         mock_ingest_class.assert_called_once_with(aphia_ids={12345})
         mock_instance.ingest_aphia_id.assert_called_once_with(12345)
 
-    def test_ingest_returns_400_for_data_with_aphia_id_already_in_db(self):
-        """Test that POST to ingest endpoint with aphia_id already in DB returns 400."""
+    @patch("api.views.taxon.IngestAphiaId")
+    def test_ingest_returns_error_when_aphiaid_is_wrong(self, mock_ingest_class: MagicMock):
+        """Test that POST to ingest endpoint with valid token returns 202 with ingested taxa.
+
+        Args:
+            mock_ingest_class: The mocked IngestAphiaId class to control its behavior in the test.
+        """
+        mock_instance = MagicMock()
+        mock_instance.ingest_aphia_id.side_effect = Exception("Ingestion error")
+        mock_ingest_class.return_value = mock_instance
+
+        resp = self.client.post(
+            self.ingest_url(),
+            {"aphia_id": 11111},
+            format="json",
+            HTTP_AUTHORIZATION="Bearer test-token",
+        )
+
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        mock_ingest_class.assert_called_once_with(aphia_ids={11111})
+        mock_instance.ingest_aphia_id.assert_called_once_with(11111)
+
+    def test_ingest_returns_existing_data_with_aphia_id_already_in_db(self):
+        """Test that POST to ingest endpoint with aphia_id already in DB returns 200 with existing data."""
         resp = self.client.post(
             self.ingest_url(),
             {"aphia_id": 12348},
             format="json",
             HTTP_AUTHORIZATION="Bearer test-token",
         )
-        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(resp.data), 1)
+        self.assertEqual(resp.data[0]["AphiaID"], 12348)
 
     def test_ingest_returns_403_when_unauthenticated(self):
         """Test that POST to ingest endpoint without token is rejected."""

@@ -434,16 +434,20 @@ class TaxonViewSet(viewsets.ReadOnlyModelViewSet):
 
         Returns:
             A 202 Accepted Response containing the list of ingested Taxon records serialized in WoRMS-like format,
-        or a 400 Bad Request if the input is invalid, or a 401 Unauthorized if not authenticated.
+        or a 400 Bad Request if the input is invalid, or a 401 Unauthorized if not authenticated, or a 200 OK if the
+        AphiaID is already in the database.
         """
         serializer = IngestAphiaIdSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         aphia_id = serializer.validated_data["aphia_id"]
-        db_aphia_id = Taxon.objects.filter(aphia_id=aphia_id).values_list("aphia_id", flat=True).first()
+        db_aphia_id = Taxon.objects.filter(aphia_id=aphia_id)
         if db_aphia_id:
-            raise ValidationError({"aphia_id": f"AphiaID={aphia_id} is already in the database."})
+            return Response(TaxonWormsLikeSerializer(db_aphia_id, many=True).data, status=status.HTTP_200_OK)
         ingester = IngestAphiaId(aphia_ids={aphia_id})
-        ingested = ingester.ingest_aphia_id(aphia_id)
+        try:
+            ingested = ingester.ingest_aphia_id(aphia_id)
+        except Exception as e:
+            raise ValidationError({"detail": f"Error ingesting AphiaID={aphia_id}: {str(e)}"}) from e
         return Response(TaxonWormsLikeSerializer(ingested, many=True).data, status=status.HTTP_202_ACCEPTED)
 
     @extend_schema(
