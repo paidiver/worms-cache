@@ -35,6 +35,30 @@ class Taxon(DefaultColumns):
     access_count = models.BigIntegerField(default=0)
 
     @property
+    def descendants(self) -> list["Taxon"]:
+        """Get all descendant taxa recursively in traversal order."""
+        descendants = []
+
+        def _get_descendants(taxon):
+            children = list(taxon.children.all().order_by("scientific_name"))
+            for child in children:
+                descendants.append(child)
+                _get_descendants(child)
+
+        _get_descendants(self)
+        return descendants
+
+    @property
+    def parents(self) -> list["Taxon"]:
+        """Get all parent taxa from root to immediate parent."""
+        parents = []
+        current_taxon = self.parent
+        while current_taxon:
+            parents.append(current_taxon)
+            current_taxon = current_taxon.parent
+        return parents[::-1]
+
+    @property
     def synonyms(self):
         """Return a queryset of Taxon instances that are synonyms of this taxon."""
         return self.synonym_children.exclude(aphia_id=self.aphia_id)
