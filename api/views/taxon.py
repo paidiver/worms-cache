@@ -1,6 +1,6 @@
 """ViewSet for the Taxon model."""
 
-from typing import List  # noqa: UP035
+import builtins
 
 from django.contrib.postgres.search import TrigramSimilarity
 from drf_spectacular.types import OpenApiTypes
@@ -62,7 +62,79 @@ class TaxonViewSet(viewsets.ReadOnlyModelViewSet):
         """List taxa, optionally filtered by query parameters."""
         return super().list(request, *args, **kwargs)
 
-    def get_queryset(self):
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="only_valid",
+                type=bool,
+                required=False,
+                description="If true, resolve the given AphiaID to its valid taxon if it is a synonym.",
+            ),
+            OpenApiParameter(
+                name="include_descendants",
+                type=bool,
+                required=False,
+                description="If true, include descendant taxa in the response.",
+            ),
+            OpenApiParameter(
+                name="include_parents",
+                type=bool,
+                required=False,
+                description="If true, include parent taxa in the response.",
+            ),
+        ],
+        responses={
+            200: OpenApiResponse(
+                response={
+                    "type": "object",
+                    "properties": {
+                        "taxon": {"$ref": "#/components/schemas/TaxonWormsLike"},
+                        "parents": {"type": "array", "items": {"$ref": "#/components/schemas/TaxonWormsLike"}},
+                        "descendants": {"type": "array", "items": {"$ref": "#/components/schemas/TaxonWormsLike"}},
+                    },
+                },
+                description=(
+                    "The retrieved taxon, and optionally its parents and descendants, serialized in a WoRMS-like "
+                    "format."
+                ),
+            )
+        },
+    )
+    def retrieve(self, request: Request, *args, **kwargs) -> Response:
+        """Retrieve a taxon by AphiaID, optionally including parents and descendants.
+
+        Args:
+            request: The HTTP request object, expected to contain query parameters "only_valid", "include_descendants",
+        and "include_parents" to control the behavior of the retrieval.
+            *args: Additional positional arguments passed to the method.
+            **kwargs: Additional keyword arguments passed to the method, expected to include the "aphia_id" for the
+        taxon to retrieve.
+
+        Returns:
+            A Response object containing the retrieved taxon data, and optionally its parents and descendants,
+        serialized in a WoRMS-like format. If the taxon is not found, a 404 Not Found response is returned.
+        """
+        only_valid = request.query_params.get("only_valid", "false").lower() in ("1", "true", "yes")
+        include_descendants = request.query_params.get("include_descendants", "false").lower() in ("1", "true", "yes")
+        include_parents = request.query_params.get("include_parents", "false").lower() in ("1", "true", "yes")
+
+        taxon = self.get_object(only_valid=only_valid)
+
+        data = {
+            "taxon": self.get_serializer(taxon).data,
+            "parents": [],
+            "descendants": [],
+        }
+
+        if include_parents:
+            data["parents"] = self.get_serializer(taxon.parents, many=True).data
+
+        if include_descendants:
+            data["descendants"] = self.get_serializer(taxon.descendants, many=True).data
+
+        return Response(data)
+
+    def get_queryset(self) -> builtins.list[Taxon]:
         """Filter the Taxon queryset by a provided taxon AphiaID (resolving synonyms) and/or language code."""
         qs = super().get_queryset().select_related("parent", "valid_taxon")
 
@@ -83,6 +155,7 @@ class TaxonViewSet(viewsets.ReadOnlyModelViewSet):
         Args:
             only_valid: If true, resolve the given AphiaID to its valid taxon if it is a synonym, otherwise return the
         taxon corresponding to the given AphiaID even if it is a synonym.
+
 
         Returns:
             The Taxon instance corresponding to the given AphiaID, resolving synonyms to their valid taxon if necessary.
@@ -114,12 +187,8 @@ class TaxonViewSet(viewsets.ReadOnlyModelViewSet):
             A nested dictionary representing the classification chain from root to the given leaf taxon in
         WoRMS API format
         """
-        chain = []
-        cur = leaf
-        while cur is not None:
-            chain.append(cur)
-            cur = cur.parent
-        chain.reverse()
+        chain = leaf.parents
+        chain.append(leaf)
 
         node = None
         for t in reversed(chain):
@@ -330,7 +399,9 @@ class TaxonViewSet(viewsets.ReadOnlyModelViewSet):
             return Response(status=204)
         return Response(results)
 
-    def _validate_ajax_by_name_part_params(self, request: Request) -> tuple[int, int, int, set[int], bool, List[str]]:  # noqa: UP006
+    def _validate_ajax_by_name_part_params(
+        self, request: Request
+    ) -> tuple[int, int, int, set[int], bool, builtins.list[str]]:
         """Validate and parse query parameters for the ajax_by_name_part endpoint.
 
         Args:
@@ -363,10 +434,10 @@ class TaxonViewSet(viewsets.ReadOnlyModelViewSet):
 
     def _handle_taxamatch_names(
         self,
-        per_input: List[dict],  # noqa: UP006
+        per_input: builtins.list[dict],
         max_results: int,
         matched_ids_by_input_idx: dict[int, set[int]],
-    ) -> List[dict]:  # noqa: UP006
+    ) -> builtins.list[dict]:
         """Handle a single query name for the match_names endpoint, appending results to the output list.
 
         Args:

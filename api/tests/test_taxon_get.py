@@ -17,6 +17,9 @@ from api.views.taxon import (
     _handle_scientific_name_input,
 )
 
+TOTAL_PARENTS = 2
+TOTAL_DESCENDANTS = 3
+
 
 class Row:
     """Helper class to represent a row of candidate name data for testing purposes."""
@@ -179,14 +182,34 @@ class TaxonViewSetTests(APITestCase):
         """Test that the detail endpoint returns the correct taxon for a given AphiaID."""
         resp = self.client.get(self.detail_url(self.leaf.aphia_id))
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
-        self.assertEqual(resp.data["AphiaID"], self.leaf.aphia_id)
+        self.assertEqual(resp.data["taxon"]["AphiaID"], self.leaf.aphia_id)
+        self.assertEqual(len(resp.data["parents"]), 0)
+        self.assertEqual(len(resp.data["descendants"]), 0)
+
+    def test_retrieve_taxon_by_aphia_id_with_parents_and_descendants(self):
+        """Test that the detail endpoint returns the correct taxon for a given AphiaID with parents and descendants."""
+        resp = self.client.get(
+            self.detail_url(self.leaf.aphia_id), {"include_parents": "true", "include_descendants": "true"}
+        )
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(resp.data["taxon"]["AphiaID"], self.leaf.aphia_id)
+        self.assertEqual(len(resp.data["parents"]), TOTAL_PARENTS)
+        self.assertEqual(len(resp.data["descendants"]), 0)
+
+        resp = self.client.get(
+            self.detail_url(self.root.aphia_id), {"include_parents": "true", "include_descendants": "true"}
+        )
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(resp.data["taxon"]["AphiaID"], self.root.aphia_id)
+        self.assertEqual(len(resp.data["parents"]), 0)
+        self.assertEqual(len(resp.data["descendants"]), TOTAL_DESCENDANTS)
 
     def test_retrieve_taxon_resolves_valid_taxon_field(self):
         """Test that the detail endpoint returns the valid taxon information when the taxon is a synonym."""
         resp = self.client.get(self.detail_url(self.invalid.aphia_id))
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
-        self.assertNotEqual(resp.data["AphiaID"], self.leaf.aphia_id)
-        self.assertEqual(resp.data["valid_AphiaID"], self.leaf.aphia_id)
+        self.assertNotEqual(resp.data["taxon"]["AphiaID"], self.leaf.aphia_id)
+        self.assertEqual(resp.data["taxon"]["valid_AphiaID"], self.leaf.aphia_id)
 
     def test_retrieve_taxon_not_found(self):
         """Test that the detail endpoint returns 404 for a non-existent taxon."""
@@ -213,6 +236,7 @@ class TaxonViewSetTests(APITestCase):
         """Test that the classification endpoint resolves to the valid taxon when given an invalid/synonym AphiaID."""
         resp = self.client.get(self.classification_url(self.invalid.aphia_id))
         self.assertEqual(resp.status_code, status.HTTP_200_OK)
+
         leaf = resp.data["child"]["child"]
         self.assertEqual(leaf["AphiaID"], self.invalid.aphia_id)
 
