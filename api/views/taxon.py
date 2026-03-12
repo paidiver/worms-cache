@@ -22,6 +22,7 @@ from api.serializers.taxon import (
 from api.services.filters import candidate_name_rows, rank_names_for_range
 from api.services.ingest_aphia_id import IngestAphiaId
 from api.services.taxamatch_client import TaxamatchError, match_batch
+from api.services.token_auth import TokenAuth
 
 TAXAMATCH_LIMIT = 50
 TOKENS_WITH_GENUS_SPECIES = 2
@@ -243,9 +244,6 @@ class TaxonViewSet(viewsets.ReadOnlyModelViewSet):
             if len(resolved) >= max_matches:
                 break
 
-        if not resolved:
-            return Response(status=204)
-
         return Response(TaxonWormsLikeSerializer(resolved, many=True).data)
 
     @extend_schema(
@@ -426,6 +424,7 @@ class TaxonViewSet(viewsets.ReadOnlyModelViewSet):
         methods=["post"],
         url_path="ingest",
         permission_classes=[IsAuthenticated],
+        authentication_classes=[TokenAuth],
     )
     def ingest(self, request: Request) -> Response:
         """Ingest an AphiaID and its related data from WoRMS into the local cache database.
@@ -440,6 +439,9 @@ class TaxonViewSet(viewsets.ReadOnlyModelViewSet):
         serializer = IngestAphiaIdSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         aphia_id = serializer.validated_data["aphia_id"]
+        db_aphia_id = Taxon.objects.filter(aphia_id=aphia_id).values_list("aphia_id", flat=True).first()
+        if db_aphia_id:
+            raise ValidationError({"aphia_id": f"AphiaID={aphia_id} is already in the database."})
         ingester = IngestAphiaId(aphia_ids={aphia_id})
         ingested = ingester.ingest_aphia_id(aphia_id)
         return Response(TaxonWormsLikeSerializer(ingested, many=True).data, status=status.HTTP_202_ACCEPTED)

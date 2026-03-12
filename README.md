@@ -93,6 +93,8 @@ DJANGO_DEBUG=1
 DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,0.0.0.0
 WORMS_API_BASE_URL=https://marinespecies.org/rest
 TAXAMATCH_URL=http://taxamatch:8080
+
+INGEST_API_TOKEN=mysecrettoken
 ```
 
 ### 2. Build and run the stack
@@ -224,10 +226,9 @@ docker compose -f docker/docker-compose.yml run --rm api tox -e py313
 
 Coverage reports are written to `coverage_reports/`.
 
+## Deployment
 
-## Helm Charts
-
-More information about the helm charts for deploying this app can be found in the [charts/README.md](charts/README.md) document.
+More information about the deployment of this app can be found in the [deployment/README.md](deployment/README.md) document.
 
 ## API Examples
 
