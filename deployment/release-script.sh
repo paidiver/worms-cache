@@ -2,7 +2,10 @@ set -euo pipefail
 
 OWNER="paidiver"
 REPO="worms-cache"
-CHART_DIR="charts"
+CHART_DIR="deployment/charts"
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "${REPO_ROOT}"
 
 PAGES_BRANCH="gh-pages"
 CHART_REPO_URL="https://${OWNER}.github.io/${REPO}/"
@@ -37,7 +40,6 @@ cr upload \
   --skip-existing
 
 git fetch origin "${PAGES_BRANCH}"
-git branch -f "${PAGES_BRANCH}" "origin/${PAGES_BRANCH}"
 
 rm -rf .cr-index
 mkdir -p .cr-index
@@ -48,4 +50,5 @@ cr index \
   --remote origin \
   --pages-branch gh-pages \
   --pages-index-path index.yaml \
-  --push
+
+git -C .cr-index push --force-with-lease origin HEAD:refs/heads/"${PAGES_BRANCH}"
