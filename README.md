@@ -230,6 +230,10 @@ Coverage reports are written to `coverage_reports/`.
 
 More information about the deployment of this app can be found in the [deployment/README.md](deployment/README.md) document.
 
+## Authentication
+
+The API has one protected endpoint for cache ingestion (`/api/ingest/`) which requires a token for authentication. The token can be set in the environment variable `INGEST_API_TOKEN` and must be included in the `Authorization` header of the request as a Bearer token.
+
 ## API Examples
 
 A collection of example API requests and responses is available in the [API Examples](docs/API_EXAMPLES.md) document.
