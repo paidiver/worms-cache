@@ -2,8 +2,8 @@ apiVersion: v2
 name: api
 description: A database and API for imagery metadata and worms-cache
 type: application
-version: 0.0.2-debug.20260312215644
-appVersion: 0.0.2-debug.20260312215644
+version: 0.0.2-debug.20260312220150
+appVersion: 0.0.2-debug.20260312220150
 maintainers:
   - name: tobfer
     email: tobias.ferreira@noc.ac.uk
