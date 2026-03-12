@@ -39,8 +39,45 @@ Query params:
 curl "$API_BASE/api/taxa/{aphia_id}/"
 ```
 
-Resolves synonyms automatically.
+Query params:
 
+* `only_valid=true` → if true, returns the accepted taxon instead of the synonym if the input AphiaID is a synonym
+* `include_descendants=true` → if true, includes all descendant taxa in the response
+* `include_parents=true` → if true, includes all parent taxa up to the root
+
+
+Response format:
+
+```json
+{
+  "taxon": {
+    "AphiaID": 1,
+    "scientificname": "Animalia",
+    "rank": "Kingdom",
+    ...
+  },
+"parents": [
+    {
+      "AphiaID": 2,
+      "scientificname": "Eukaryota",
+      "rank": "Domain",
+      ...
+    },
+    ...
+  ],
+  "descendants": [
+    {
+      "AphiaID": 3,
+      "scientificname": "Chordata",
+      "rank": "Phylum",
+      ...
+    },
+    ...
+  ]
+}
+```
+
+Parents and descendants are only included if the corresponding query parameters are set to true. If the taxon is not found, a 404 Not Found response is returned.
 
 ## Classification
 

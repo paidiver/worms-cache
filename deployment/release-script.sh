@@ -2,7 +2,7 @@ set -euo pipefail
 
 OWNER="paidiver"
 REPO="worms-cache"
-CHART_DIR="api"
+CHART_DIR="charts"
 
 PAGES_BRANCH="gh-pages"
 CHART_REPO_URL="https://${OWNER}.github.io/${REPO}/"
@@ -10,9 +10,9 @@ export CR_TOKEN="${GHCR_TOKEN}"
 
 VERSION="0.0.2-debug.$(date +%Y%m%d%H%M%S)"
 
-command -v helm >/dev/null
-command -v cr >/dev/null
-command -v yq >/dev/null
+command -v helm >/dev/null || echo "helm is not installed"
+command -v cr >/dev/null || echo "cr is not installed"
+command -v yq >/dev/null || echo "yq is not installed"
 
 helm repo add bitnami https://charts.bitnami.com/bitnami >/dev/null 2>&1 || true
 helm repo update >/dev/null
@@ -41,7 +41,6 @@ git branch -f "${PAGES_BRANCH}" "origin/${PAGES_BRANCH}"
 
 rm -rf .cr-index
 mkdir -p .cr-index
-
 cr index \
   --owner "${OWNER}" \
   --git-repo "${REPO}" \
