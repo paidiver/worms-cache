@@ -90,3 +90,9 @@ class ClassificationNodeSerializer(serializers.Serializer):
     rank = serializers.CharField()
     scientificname = serializers.CharField()
     child = serializers.DictField(allow_null=True)
+
+
+class IngestAphiaIdSerializer(serializers.Serializer):
+    """Serializer for the ingest AphiaID endpoint request body."""
+
+    aphia_id = serializers.IntegerField(min_value=1, help_text="The AphiaID to ingest from WoRMS.")

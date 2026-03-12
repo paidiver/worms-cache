@@ -5,9 +5,10 @@ from typing import List  # noqa: UP035
 from django.contrib.postgres.search import TrigramSimilarity
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
-from rest_framework import viewsets
+from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import NotFound, ValidationError
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 
@@ -15,9 +16,11 @@ from api.models import Taxon
 from api.models.vernacular import Vernacular
 from api.serializers.taxon import (
     ClassificationNodeSerializer,
+    IngestAphiaIdSerializer,
     TaxonWormsLikeSerializer,
 )
 from api.services.filters import candidate_name_rows, rank_names_for_range
+from api.services.ingest_aphia_id import IngestAphiaId
 from api.services.taxamatch_client import TaxamatchError, match_batch
 
 TAXAMATCH_LIMIT = 50
@@ -410,6 +413,36 @@ class TaxonViewSet(viewsets.ReadOnlyModelViewSet):
             results.append(TaxonWormsLikeSerializer(resolved, many=True).data)
 
         return results
+
+    @extend_schema(
+        request=IngestAphiaIdSerializer,
+        responses={
+            202: TaxonWormsLikeSerializer(many=True),
+        },
+        description="Ingest an AphiaID and its related data from WoRMS into the local cache. Requires authentication.",
+    )
+    @action(
+        detail=False,
+        methods=["post"],
+        url_path="ingest",
+        permission_classes=[IsAuthenticated],
+    )
+    def ingest(self, request: Request) -> Response:
+        """Ingest an AphiaID and its related data from WoRMS into the local cache database.
+
+        Args:
+            request: The HTTP request object, expected to contain a JSON body with an "aphia_id" key (integer).
+
+        Returns:
+            A 202 Accepted Response containing the list of ingested Taxon records serialized in WoRMS-like format,
+        or a 400 Bad Request if the input is invalid, or a 401 Unauthorized if not authenticated.
+        """
+        serializer = IngestAphiaIdSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        aphia_id = serializer.validated_data["aphia_id"]
+        ingester = IngestAphiaId(aphia_ids={aphia_id})
+        ingested = ingester.ingest_aphia_id(aphia_id)
+        return Response(TaxonWormsLikeSerializer(ingested, many=True).data, status=status.HTTP_202_ACCEPTED)
 
     @extend_schema(
         parameters=[
