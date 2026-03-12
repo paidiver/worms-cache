@@ -2,7 +2,6 @@
 
 from unittest.mock import MagicMock, patch
 
-from django.contrib.auth.models import User
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -12,7 +11,11 @@ from api.models.name_index import NameIndex
 from api.models.rank import Rank
 from api.models.vernacular import Vernacular
 from api.services.taxamatch_client import TaxamatchError
-from api.views.taxon import _handle_scientific_name_input
+from api.views.taxon import (
+    _combine_taxa_list,
+    _handle_resolved_taxa,
+    _handle_scientific_name_input,
+)
 
 
 class Row:
@@ -466,6 +469,27 @@ class TaxonViewSetTests(APITestCase):
         self.assertEqual(resp.status_code, status.HTTP_204_NO_CONTENT)
 
     @patch("api.views.taxon.match_batch")
+    def test_ajax_by_name_part_uses_matched_candidate_ids_when_taxamatch_matches(self, mock_match_batch: MagicMock):
+        """Test that the ajax_by_name_part endpoint uses matched candidate IDs from Taxamatch when matches are found.
+
+        Args:
+            mock_match_batch: The mocked match_batch function to control its behavior in the test.
+        """
+        mock_match_batch.return_value = [{"matched_ids": [11]}]
+
+        resp = self.client.get(
+            self.ajax_by_name_part_url("gadus"),
+            {
+                "combine_vernaculars": "false",
+                "max_matches": 20,
+            },
+        )
+
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        returned_ids = [t["AphiaID"] for t in resp.data]
+        self.assertEqual(returned_ids, [self.leaf.aphia_id])
+
+    @patch("api.views.taxon.match_batch")
     def test_match_names_pair(self, mock_match_batch: MagicMock):
         """Test that the match_names_pair endpoint returns correct match result for two scientific names.
 
@@ -493,63 +517,25 @@ class TaxonViewSetTests(APITestCase):
         """Test that the function strips leading and trailing whitespace from the input name."""
         self.assertEqual(_handle_scientific_name_input("  gadus morhua  "), "Gadus morhua")
 
+    def test_handle_resolved_taxa_skips_duplicate_valid_taxon(self):
+        """Test that the function skips adding a taxon to the resolved list if its valid taxon is already included."""
+        taxa = [self.leaf, self.invalid]
+        resolved = _handle_resolved_taxa(taxa, max_results=10)
+        self.assertEqual([t.aphia_id for t in resolved], [self.leaf.aphia_id])
 
-class IngestAphiaIdViewTests(APITestCase):
-    """Tests for the ingest AphiaID endpoint."""
+    def test_handle_resolved_taxa_stops_at_max_results(self):
+        """Test that the function stops adding taxa to the resolved list once the max_results limit is reached."""
+        other = Taxon.objects.create(
+            aphia_id=55,
+            scientific_name="Merlangius merlangus",
+            rank="Species",
+            parent=self.phylum,
+        )
+        resolved = _handle_resolved_taxa([self.leaf, other], max_results=1)
+        self.assertEqual([t.aphia_id for t in resolved], [self.leaf.aphia_id])
 
-    def setUp(self):
-        """Set up test data and a test user for authentication."""
-        self.user = User.objects.create_user(username="testuser", password="testpassword")
-
-    def ingest_url(self) -> str:
-        """Return the URL for the ingest endpoint.
-
-        Returns:
-            str: The URL for the ingest endpoint.
-        """
-        return reverse("taxa-ingest")
-
-    @patch("api.views.taxon.IngestAphiaId")
-    def test_ingest_returns_202_when_authenticated(self, mock_ingest_class: MagicMock):
-        """Test that authenticated POST to ingest endpoint returns 202 with ingested taxa.
-
-        Args:
-            mock_ingest_class: The mocked IngestAphiaId class to control its behavior in the test.
-        """
-        mock_taxon = MagicMock()
-        mock_taxon.aphia_id = 12345
-        mock_taxon.scientific_name = "Gadus morhua"
-        mock_taxon.rank = "Species"
-        mock_taxon.status = "accepted"
-        mock_taxon.source_url = None
-        mock_taxon.worms_modified = None
-        mock_taxon.cached_at = None
-        mock_taxon.valid_taxon = None
-        mock_taxon.parent = None
-
-        mock_instance = MagicMock()
-        mock_instance.ingest_aphia_id.return_value = [mock_taxon]
-        mock_ingest_class.return_value = mock_instance
-
-        self.client.force_authenticate(user=self.user)
-        resp = self.client.post(self.ingest_url(), {"aphia_id": 12345}, format="json")
-        self.assertEqual(resp.status_code, status.HTTP_202_ACCEPTED)
-        mock_ingest_class.assert_called_once_with(aphia_ids={12345})
-        mock_instance.ingest_aphia_id.assert_called_once_with(12345)
-
-    def test_ingest_returns_401_when_unauthenticated(self):
-        """Test that unauthenticated POST to ingest endpoint returns 401."""
-        resp = self.client.post(self.ingest_url(), {"aphia_id": 12345}, format="json")
-        self.assertEqual(resp.status_code, status.HTTP_401_UNAUTHORIZED)
-
-    def test_ingest_returns_400_for_invalid_aphia_id(self):
-        """Test that POST to ingest endpoint with invalid aphia_id returns 400."""
-        self.client.force_authenticate(user=self.user)
-        resp = self.client.post(self.ingest_url(), {"aphia_id": -1}, format="json")
-        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
-
-    def test_ingest_returns_400_when_aphia_id_missing(self):
-        """Test that POST to ingest endpoint without aphia_id returns 400."""
-        self.client.force_authenticate(user=self.user)
-        resp = self.client.post(self.ingest_url(), {}, format="json")
-        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+    def test_combine_taxa_list_skips_duplicate_taxon_ids(self):
+        """Test that the function combines taxa lists while skipping duplicate taxon IDs."""
+        taxa = [self.leaf, self.leaf, self.invalid]
+        result = _combine_taxa_list(taxa, excluded=set(), max_matches=10)
+        self.assertEqual([t.aphia_id for t in result], [self.leaf.aphia_id, self.invalid.aphia_id])

@@ -8,6 +8,19 @@ export API_BASE="http://localhost:8000"
 
 ## Taxa
 
+### Ingest new AphiaID
+
+For this endpoint, you need to provide a valid token in the `Authorization` header. You can set this token as an environment variable and use it in your curl command:
+
+```bash
+curl -X POST "$API_BASE/api/taxa/ingest/" \
+  -H "Authorization: Bearer mysecrettoken" \
+  -H "Content-Type: application/json" \
+  -d '{"aphia_id": 12345}'
+```
+
+If the AphiaID is successfully ingested, you will receive a response with the taxon data and a 202 Accepted status. If the AphiaID is already in the database or invalid, you will get a 400 Bad Request response with an error message.
+
 ### List
 
 ```
