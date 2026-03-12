@@ -1,8 +1,12 @@
+#!/usr/bin/env bash
 set -euo pipefail
 
 OWNER="paidiver"
 REPO="worms-cache"
-CHART_DIR="charts"
+CHART_DIR="deployment/charts"
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "${REPO_ROOT}"
 
 PAGES_BRANCH="gh-pages"
 CHART_REPO_URL="https://${OWNER}.github.io/${REPO}/"
@@ -36,16 +40,28 @@ cr upload \
   --package-path .cr-release-packages \
   --skip-existing
 
-git fetch origin "${PAGES_BRANCH}"
-git branch -f "${PAGES_BRANCH}" "origin/${PAGES_BRANCH}"
-
 rm -rf .cr-index
 mkdir -p .cr-index
+
 cr index \
   --owner "${OWNER}" \
   --git-repo "${REPO}" \
   --package-path .cr-release-packages \
-  --remote origin \
-  --pages-branch gh-pages \
-  --pages-index-path index.yaml \
-  --push
+  --index-path .cr-index/index.yaml
+
+tmprepo="$(mktemp -d)"
+git init "${tmprepo}" >/dev/null
+git -C "${tmprepo}" checkout --orphan "${PAGES_BRANCH}" >/dev/null
+
+cp .cr-index/index.yaml "${tmprepo}/index.yaml"
+
+git -C "${tmprepo}" add index.yaml
+git -C "${tmprepo}" \
+  -c user.name="release-script" \
+  -c user.email="release-script@example.com" \
+  commit -m "Update Helm index" >/dev/null
+
+git -C "${tmprepo}" remote add origin "$(git remote get-url origin)"
+git -C "${tmprepo}" push --force origin "${PAGES_BRANCH}"
+
+rm -rf "${tmprepo}"
