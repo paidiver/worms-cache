@@ -25,7 +25,7 @@ DEBUG = os.environ.get("DJANGO_DEBUG", "1") == "1"
 allowed_hosts = os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
 ALLOWED_HOSTS = [h.strip() for h in allowed_hosts if h.strip()]
 
-
+INGEST_API_TOKEN = os.environ.get("INGEST_API_TOKEN", "mysecrettoken")
 # Application definition
 
 INSTALLED_APPS = [

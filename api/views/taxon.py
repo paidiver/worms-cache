@@ -5,9 +5,10 @@ from typing import List  # noqa: UP035
 from django.contrib.postgres.search import TrigramSimilarity
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
-from rest_framework import viewsets
+from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import NotFound, ValidationError
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 
@@ -15,10 +16,13 @@ from api.models import Taxon
 from api.models.vernacular import Vernacular
 from api.serializers.taxon import (
     ClassificationNodeSerializer,
+    IngestAphiaIdSerializer,
     TaxonWormsLikeSerializer,
 )
 from api.services.filters import candidate_name_rows, rank_names_for_range
+from api.services.ingest_aphia_id import IngestAphiaId
 from api.services.taxamatch_client import TaxamatchError, match_batch
+from api.services.token_auth import TokenAuth
 
 TAXAMATCH_LIMIT = 50
 TOKENS_WITH_GENUS_SPECIES = 2
@@ -240,9 +244,6 @@ class TaxonViewSet(viewsets.ReadOnlyModelViewSet):
             if len(resolved) >= max_matches:
                 break
 
-        if not resolved:
-            return Response(status=204)
-
         return Response(TaxonWormsLikeSerializer(resolved, many=True).data)
 
     @extend_schema(
@@ -410,6 +411,44 @@ class TaxonViewSet(viewsets.ReadOnlyModelViewSet):
             results.append(TaxonWormsLikeSerializer(resolved, many=True).data)
 
         return results
+
+    @extend_schema(
+        request=IngestAphiaIdSerializer,
+        responses={
+            202: TaxonWormsLikeSerializer(many=True),
+        },
+        description="Ingest an AphiaID and its related data from WoRMS into the local cache. Requires authentication.",
+    )
+    @action(
+        detail=False,
+        methods=["post"],
+        url_path="ingest",
+        permission_classes=[IsAuthenticated],
+        authentication_classes=[TokenAuth],
+    )
+    def ingest(self, request: Request) -> Response:
+        """Ingest an AphiaID and its related data from WoRMS into the local cache database.
+
+        Args:
+            request: The HTTP request object, expected to contain a JSON body with an "aphia_id" key (integer).
+
+        Returns:
+            A 202 Accepted Response containing the list of ingested Taxon records serialized in WoRMS-like format,
+        or a 400 Bad Request if the input is invalid, or a 401 Unauthorized if not authenticated, or a 200 OK if the
+        AphiaID is already in the database.
+        """
+        serializer = IngestAphiaIdSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        aphia_id = serializer.validated_data["aphia_id"]
+        db_aphia_id = Taxon.objects.filter(aphia_id=aphia_id)
+        if db_aphia_id:
+            return Response(TaxonWormsLikeSerializer(db_aphia_id, many=True).data, status=status.HTTP_200_OK)
+        ingester = IngestAphiaId(aphia_ids={aphia_id})
+        try:
+            ingested = ingester.ingest_aphia_id(aphia_id)
+        except Exception as e:
+            raise ValidationError({"detail": f"Error ingesting AphiaID={aphia_id}: {str(e)}"}) from e
+        return Response(TaxonWormsLikeSerializer(ingested, many=True).data, status=status.HTTP_202_ACCEPTED)
 
     @extend_schema(
         parameters=[

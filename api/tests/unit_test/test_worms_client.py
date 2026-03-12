@@ -153,3 +153,12 @@ class WoRMSClientTests(SimpleTestCase):
             out2 = client.synonyms(10)
         self.assertEqual(out2, [])
         mock_get2.assert_called_once_with("/AphiaSynonymsByAphiaID/10")
+
+    def test_records_by_date(self):
+        """Test that records_by_date() builds the correct API path and returns the expected result."""
+        client = WoRMSClient(base_url="https://worms.example")
+        with patch.object(WoRMSClient, "_get", return_value=[{"AphiaID": 10}]) as mock_get:
+            out = client.records_by_date("2024-01-01")
+
+        self.assertEqual(out, [{"AphiaID": 10}])
+        mock_get.assert_called_once_with("/AphiaRecordsByDate?startdate=2024-01-01")
