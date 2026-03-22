@@ -1,0 +1,16 @@
+global:
+  defaultStorageClass: "scale-nocacuk-bodc2"
+
+postgresql:
+  primary:
+    podSecurityContext:
+      enabled: true
+      fsGroup: 65534
+    containerSecurityContext:
+      runAsUser: 65534
+      runAsGroup: 65534
+    persistence:
+      enabled: true
+    resources:
+      limits:
+        memory: 256Mi

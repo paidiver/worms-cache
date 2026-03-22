@@ -1,0 +1,865 @@
+"""ViewSet for the Taxon model."""
+
+import builtins
+
+from django.contrib.postgres.search import TrigramSimilarity
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
+from rest_framework import status, viewsets
+from rest_framework.decorators import action
+from rest_framework.exceptions import NotFound, ValidationError
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.request import Request
+from rest_framework.response import Response
+
+from api.models import Taxon
+from api.models.vernacular import Vernacular
+from api.serializers.taxon import (
+    ClassificationNodeSerializer,
+    IngestAphiaIdSerializer,
+    TaxonWormsLikeSerializer,
+)
+from api.services.filters import candidate_name_rows, rank_names_for_range
+from api.services.ingest_aphia_id import IngestAphiaId
+from api.services.rebuild_name_index import rebuild_name_index
+from api.services.taxamatch_client import TaxamatchError, match_batch
+from api.services.token_auth import TokenAuth
+
+TAXAMATCH_LIMIT = 50
+TOKENS_WITH_GENUS_SPECIES = 2
+
+AJAX_BY_NAME_PART_PARAMETERS = [
+    OpenApiParameter(name="name_part", type=OpenApiTypes.STR, location=OpenApiParameter.PATH, required=True),
+    OpenApiParameter(
+        name="rank_min", type=OpenApiTypes.INT, required=False, description="Min rank (WoRMS-style integer)."
+    ),
+    OpenApiParameter(
+        name="rank_max", type=OpenApiTypes.INT, required=False, description="Max rank (WoRMS-style integer)."
+    ),
+    OpenApiParameter(name="max_matches", type=OpenApiTypes.INT, required=False, description="Default 20, max 50."),
+    OpenApiParameter(name="excluded_ids[]", type=OpenApiTypes.INT, many=True, required=False),
+    OpenApiParameter(
+        name="combine_vernaculars",
+        type=OpenApiTypes.BOOL,
+        required=False,
+        description="Include vernacular matching.",
+    ),
+    OpenApiParameter(
+        name="languages[]",
+        type=OpenApiTypes.STR,
+        many=True,
+        required=False,
+        description="ISO639-3 codes, e.g. eng,nld,fra",
+    ),
+]
+
+
+@extend_schema(tags=["Taxa"])
+class TaxonViewSet(viewsets.ReadOnlyModelViewSet):
+    """Taxa viewset class."""
+
+    queryset = Taxon.objects.all()
+    serializer_class = TaxonWormsLikeSerializer
+    lookup_field = "aphia_id"
+
+    def get_serializer_class(self):
+        """Return the appropriate serializer class based on the action."""
+        if self.action == "retrieve":
+            return TaxonWormsLikeSerializer
+        return TaxonWormsLikeSerializer
+
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="scientific_name",
+                type=str,
+                required=False,
+                description="Substring match against scientific name.",
+            ),
+            OpenApiParameter(
+                name="rank",
+                type=str,
+                required=False,
+                description="Optional rank filter (e.g. Species, Genus). Case-insensitive exact match.",
+            ),
+            OpenApiParameter(
+                name="aphia_ids[]",
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                many=True,
+                required=False,
+                description="List of AphiaIDs to return",
+            ),
+        ],
+    )
+    def list(self, request: Request, *args, **kwargs) -> Response:
+        """List taxa, optionally filtered by query parameters."""
+        aphia_ids = self._get_aphia_ids_from_query(request)
+        if aphia_ids:
+            qs = (
+                Taxon.objects.filter(aphia_id__in=aphia_ids)
+                .select_related("parent", "valid_taxon")
+                .order_by("scientific_name")
+            )
+            serializer = self.get_serializer(qs, many=True)
+            return Response(serializer.data)
+
+        return super().list(request, *args, **kwargs)
+
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="aphia_ids[]",
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                many=True,
+                required=True,
+                description="List of AphiaIDs whose direct children should be included.",
+            ),
+        ],
+    )
+    @action(detail=False, methods=["get"], url_path="ids_with_descendants")
+    def ids_with_descendants(self, request: Request, *args, **kwargs) -> Response:
+        """List taxa, optionally filtered by query parameters.
+
+        Args:
+            request: The HTTP request object, expected to contain a query parameter "aphia_ids[]" which is a list of
+        integer AphiaIDs for which to retrieve the corresponding taxa and their descendant taxa.
+            *args: Additional positional arguments passed to the method.
+            **kwargs: Additional keyword arguments passed to the method.
+
+        Returns:
+            A Response object containing a list of AphiaIDs corresponding to the taxa identified by the provided
+        "aphia_ids[]" query parameter and all of their descendant taxa. If no valid "aphia_ids[]" are provided, a 400
+        Bad Request response is returned.
+        """
+        aphia_ids = self._get_aphia_ids_from_query(request)
+        if not aphia_ids:
+            return Response(
+                {"detail": "aphia_ids[] must contain at least one integer."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        taxa = list(
+            Taxon.objects.filter(aphia_id__in=aphia_ids)
+            .select_related("parent", "valid_taxon")
+            .order_by("scientific_name")
+        )
+
+        combined_ids = []
+        seen = set()
+
+        for taxon in taxa:
+            if taxon.aphia_id not in seen:
+                seen.add(taxon.aphia_id)
+                combined_ids.append(taxon.aphia_id)
+
+            for descendant in taxon.descendants:
+                if descendant.aphia_id not in seen:
+                    seen.add(descendant.aphia_id)
+                    combined_ids.append(descendant.aphia_id)
+
+        return Response(combined_ids)
+
+    def _get_aphia_ids_from_query(self, request: Request) -> builtins.list[int]:
+        """Extract and validate a list of AphiaIDs from the query parameters."""
+        raw_ids = request.query_params.getlist("aphia_ids[]")
+        aphia_ids = []
+        for value in raw_ids:
+            try:
+                aphia_ids.append(int(value))
+            except (TypeError, ValueError):
+                continue
+        return aphia_ids
+
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="only_valid",
+                type=bool,
+                required=False,
+                description="If true, resolve the given AphiaID to its valid taxon if it is a synonym.",
+            ),
+            OpenApiParameter(
+                name="include_descendants",
+                type=bool,
+                required=False,
+                description="If true, include descendant taxa in the response.",
+            ),
+            OpenApiParameter(
+                name="include_parents",
+                type=bool,
+                required=False,
+                description="If true, include parent taxa in the response.",
+            ),
+        ],
+        responses={
+            200: OpenApiResponse(
+                response={
+                    "type": "object",
+                    "properties": {
+                        "taxon": {"$ref": "#/components/schemas/TaxonWormsLike"},
+                        "parents": {"type": "array", "items": {"$ref": "#/components/schemas/TaxonWormsLike"}},
+                        "descendants": {"type": "array", "items": {"$ref": "#/components/schemas/TaxonWormsLike"}},
+                    },
+                },
+                description=(
+                    "The retrieved taxon, and optionally its parents and descendants, serialized in a WoRMS-like "
+                    "format."
+                ),
+            )
+        },
+    )
+    def retrieve(self, request: Request, *args, **kwargs) -> Response:
+        """Retrieve a taxon by AphiaID, optionally including parents and descendants.
+
+        Args:
+            request: The HTTP request object, expected to contain query parameters "only_valid", "include_descendants",
+        and "include_parents" to control the behavior of the retrieval.
+            *args: Additional positional arguments passed to the method.
+            **kwargs: Additional keyword arguments passed to the method, expected to include the "aphia_id" for the
+        taxon to retrieve.
+
+        Returns:
+            A Response object containing the retrieved taxon data, and optionally its parents and descendants,
+        serialized in a WoRMS-like format. If the taxon is not found, a 404 Not Found response is returned.
+        """
+        only_valid = request.query_params.get("only_valid", "false").lower() in ("1", "true", "yes")
+        include_descendants = request.query_params.get("include_descendants", "false").lower() in ("1", "true", "yes")
+        include_parents = request.query_params.get("include_parents", "false").lower() in ("1", "true", "yes")
+
+        taxon = self.get_object(only_valid=only_valid)
+
+        data = {
+            "taxon": self.get_serializer(taxon).data,
+            "parents": [],
+            "descendants": [],
+        }
+
+        if include_parents:
+            data["parents"] = self.get_serializer(taxon.parents, many=True).data
+
+        if include_descendants:
+            data["descendants"] = self.get_serializer(taxon.descendants, many=True).data
+
+        return Response(data)
+
+    @extend_schema(responses={200: ClassificationNodeSerializer})
+    @action(
+        detail=False,
+        methods=["get"],
+        url_path=r"classification/(?P<aphia_id>\d+)",
+    )
+    def classification(self, request: Request, aphia_id=None) -> Response:
+        """Return WoRMS-style nested classification object for a given AphiaID.
+
+        Args:
+            request: The HTTP request object.
+            aphia_id: The AphiaID for which to retrieve the classification chain, passed as a URL parameter.
+
+        Returns:
+            A Response object containing a nested dictionary representing the classification chain from root to the
+        given taxon in WoRMS API format, or a 404 if the taxon is not found.
+        """
+        taxon = self.get_object()
+        tree = self._build_classification_tree(taxon)
+        return Response(tree)
+
+    @action(
+        detail=False,
+        methods=["get"],
+        url_path=r"synonyms/(?P<aphia_id>\d+)",
+    )
+    def synonyms(self, request: Request, aphia_id=None) -> Response:
+        """Return synonyms for the resolved valid taxon.
+
+        Args:
+            request: The HTTP request object.
+            aphia_id: The AphiaID for which to retrieve synonyms, passed as a URL parameter.
+
+        Returns:
+            A Response object containing a list of synonyms for the resolved valid taxon, or a 404 if the taxon
+        is not found.
+        """
+        taxon = self.get_object(only_valid=True)
+        syns = taxon.synonyms.all()
+        return Response(TaxonWormsLikeSerializer(syns, many=True).data)
+
+    @extend_schema(
+        parameters=AJAX_BY_NAME_PART_PARAMETERS,
+        responses={200: TaxonWormsLikeSerializer(many=True)},
+    )
+    @action(detail=False, methods=["get"], url_path=r"ajax_by_name_part/(?P<name_part>[^/]+)")
+    def ajax_by_name_part(self, request: Request, name_part: str) -> Response:
+        """Endpoint for AJAX autocomplete of taxon names.
+
+        Args:
+            request: The HTTP request object, expected to contain query parameters for filtering and matching options.
+            name_part: The path parameter containing the partial name to match against taxon scientific names.
+
+        Returns:
+            A Response object containing a list of matched taxa serialized in a WoRMS-like format, or a 204 No Content
+        if no matches are found.
+        """
+        resolved = self._get_ajax_by_name_part_results(request, name_part)
+        if not resolved:
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        return Response(TaxonWormsLikeSerializer(resolved, many=True).data)
+
+    @extend_schema(
+        parameters=AJAX_BY_NAME_PART_PARAMETERS,
+        responses={
+            200: OpenApiResponse(
+                description="List of matched AphiaIDs.",
+                examples=[{"value": [127160, 1371, 248099]}],
+            )
+        },
+    )
+    @action(detail=False, methods=["get"], url_path=r"ajax_by_name_part/only_ids/(?P<name_part>[^/]+)")
+    def ajax_by_name_part_only_aphiaid(self, request: Request, name_part: str) -> Response:
+        """Endpoint for AJAX autocomplete of taxon names, returning only AphiaIDs.
+
+        Args:
+            request: The HTTP request object, expected to contain query parameters for filtering and matching options.
+            name_part: The path parameter containing the partial name to match against taxon scientific names.
+
+        Returns:
+            A Response object containing a list of matched AphiaIDs, or a 204 No Content if no matches are found.
+        """
+        resolved = self._get_ajax_by_name_part_results(request, name_part)
+        if not resolved:
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        return Response([taxon.aphia_id for taxon in resolved])
+
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="scientificnames[]",
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                many=True,
+                required=True,
+                description="List of scientific names to match",
+            ),
+            OpenApiParameter(
+                name="max_results",
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description="Maximum matches per input (default 3)",
+            ),
+        ],
+        responses={
+            200: OpenApiResponse(
+                response={
+                    "type": "array",
+                    "items": {
+                        "type": "array",
+                        "items": {"$ref": "#/components/schemas/TaxonWormsLike"},
+                    },
+                },
+                description="List of match lists, one list per input scientific name",
+            )
+        },
+    )
+    @action(detail=False, methods=["get"], url_path="match_names")
+    def match_names(self, request: Request) -> Response:
+        """Match a query names against the Taxons using candidate + TAXAMATCH fuzzy matching algorithm by Tony Rees.
+
+        Args:
+            request: The HTTP request object, expected to contain a JSON body with a "names" key (list of strings)
+            and optional "max_results" key (integer, default 3) to limit the number of matches returned per query name.
+
+        Returns:
+            A Response object containing a list of results for each matched taxa (up to max_results).
+        """
+        names = request.query_params.getlist("scientificnames[]")
+        max_results = int(request.query_params.get("max_results", 3))
+        if len(names) > TAXAMATCH_LIMIT:
+            raise ValidationError({"names": f"Maximum {TAXAMATCH_LIMIT} names per call."})
+
+        per_input = []
+        for raw in names:
+            qname = (raw or "").strip()
+            candidate_rows = candidate_name_rows(qname, limit=300)
+            qname = _handle_scientific_name_input(qname)
+            per_input.append({"input": qname, "candidates": candidate_rows})
+
+        batch_queries = []
+        batch_to_input_idx = []
+
+        for i, item in enumerate(per_input):
+            if item["candidates"]:
+                batch_queries.append(
+                    {
+                        "input": item["input"],
+                        "candidates": [{"id": r.id, "name": r.name_raw} for r in item["candidates"]],
+                    }
+                )
+                batch_to_input_idx.append(i)
+
+        matched_ids_by_input_idx: dict[int, set[int]] = {}
+        if batch_queries:
+            try:
+                batch_results = match_batch(batch_queries, timeout=3.0)
+            except TaxamatchError:
+                batch_results = []
+
+            for j, br in enumerate(batch_results):
+                input_idx = batch_to_input_idx[j]
+                matched_ids_by_input_idx[input_idx] = set(br.get("matched_ids") or [])
+
+        results = self._handle_taxamatch_names(per_input, max_results, matched_ids_by_input_idx)
+
+        if all(len(r) == 0 for r in results):
+            return Response(status=204)
+        return Response(results)
+
+    @extend_schema(
+        request=IngestAphiaIdSerializer,
+        responses={
+            202: TaxonWormsLikeSerializer(many=True),
+        },
+        description="Ingest an AphiaID and its related data from WoRMS into the local cache. Requires authentication.",
+    )
+    @action(
+        detail=False,
+        methods=["post"],
+        url_path="ingest",
+        permission_classes=[IsAuthenticated],
+        authentication_classes=[TokenAuth],
+    )
+    def ingest(self, request: Request) -> Response:
+        """Ingest an AphiaID and its related data from WoRMS into the local cache database.
+
+        Args:
+            request: The HTTP request object, expected to contain a JSON body with an "aphia_id" key (integer).
+
+        Returns:
+            A 202 Accepted Response containing the list of ingested Taxon records serialized in WoRMS-like format,
+        or a 400 Bad Request if the input is invalid, or a 401 Unauthorized if not authenticated, or a 200 OK if the
+        AphiaID is already in the database.
+        """
+        serializer = IngestAphiaIdSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        aphia_id = serializer.validated_data["aphia_id"]
+        db_aphia_id = Taxon.objects.filter(aphia_id=aphia_id)
+        if db_aphia_id:
+            return Response(TaxonWormsLikeSerializer(db_aphia_id, many=True).data, status=status.HTTP_200_OK)
+        ingester = IngestAphiaId(aphia_ids={aphia_id})
+        try:
+            ingested_taxa = ingester.ingest_aphia_id(aphia_id)
+            aphia_ids = [taxon.aphia_id for taxon in ingested_taxa]
+            rebuild_name_index(aphia_ids=aphia_ids)
+        except Exception as e:
+            raise ValidationError({"detail": f"Error ingesting AphiaID={aphia_id}: {str(e)}"}) from e
+        return Response(TaxonWormsLikeSerializer(ingested_taxa, many=True).data, status=status.HTTP_202_ACCEPTED)
+
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="scientificname1",
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                required=True,
+                description="The first scientific name to match",
+            ),
+            OpenApiParameter(
+                name="scientificname2",
+                type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                required=True,
+                description="The second scientific name to match",
+            ),
+        ],
+        responses={
+            200: OpenApiResponse(
+                response={
+                    "type": "object",
+                    "properties": {"match": {"type": "boolean"}},
+                },
+                description="Indicates whether the two scientific names match the same taxon",
+            )
+        },
+    )
+    @action(detail=False, methods=["get"], url_path="match_names_pair")
+    def match_names_pair(self, request: Request) -> Response:
+        """Check if two scientific names match the same taxon using the TaxaMatch service.
+
+        Args:
+            request: The HTTP request object, expected to contain query parameters "scientificname1" and
+        "scientificname2" with the scientific names to compare.
+
+        Returns:
+            A Response object true if the two names match the same taxon according to TaxaMatch, false otherwise.
+        """
+        scientific_name1 = _handle_scientific_name_input(request.query_params.get("scientificname1", ""))
+        scientific_name2 = _handle_scientific_name_input(request.query_params.get("scientificname2", ""))
+
+        batch_queries = [{"input": scientific_name1, "candidates": [{"id": 1, "name": scientific_name2}]}]
+        batch_results = match_batch(batch_queries, timeout=3.0)
+
+        matched_ids = batch_results[0].get("matched_ids", [])
+        match = False
+        if matched_ids:
+            match = len(matched_ids) > 0
+        return Response({"match": match})
+
+    def get_queryset(self) -> builtins.list[Taxon]:
+        """Filter the Taxon queryset by a provided taxon AphiaID (resolving synonyms) and/or language code."""
+        qs = super().get_queryset().select_related("parent", "valid_taxon")
+
+        scientific_name = (self.request.query_params.get("scientific_name") or "").strip()
+        rank = (self.request.query_params.get("rank") or "").strip()
+
+        if scientific_name:
+            qs = qs.filter(scientific_name__icontains=scientific_name)
+
+        if rank:
+            qs = qs.filter(rank__iexact=rank)
+
+        return qs.order_by("scientific_name")[:50]
+
+    def get_object(self, only_valid: bool = False) -> Taxon:
+        """Return the  taxon.
+
+        Args:
+            only_valid: If true, resolve the given AphiaID to its valid taxon if it is a synonym, otherwise return the
+        taxon corresponding to the given AphiaID even if it is a synonym.
+
+        Returns:
+            The Taxon instance corresponding to the given AphiaID, resolving synonyms to their valid taxon if necessary.
+        """
+        aphia_id_raw = self.kwargs.get(self.lookup_field) or self.kwargs.get("pk")
+        try:
+            aphia_id = int(aphia_id_raw)
+        except (TypeError, ValueError) as e:
+            raise ValidationError({"aphia_id": "Must be an integer AphiaID."}) from e
+
+        base_qs = Taxon.objects.select_related("parent", "valid_taxon").prefetch_related("vernaculars")
+
+        taxon = base_qs.filter(aphia_id=aphia_id).first()
+        if taxon:
+            if taxon.valid_taxon_id and taxon.valid_taxon_id != aphia_id and only_valid:
+                valid = base_qs.filter(aphia_id=taxon.valid_taxon_id).first()
+                return valid
+            return taxon
+        raise NotFound(detail=f"Valid taxon not found for AphiaID={aphia_id}")
+
+    def _build_classification_tree(self, leaf: Taxon) -> dict:
+        """Build WoRMS-style nested classification structure. Output keys: AphiaID, rank, scientificname, child.
+
+        Args:
+            leaf: The Taxon instance to build the classification tree for, typically the resolved valid taxon
+        for a given AphiaID
+
+        Returns:
+            A nested dictionary representing the classification chain from root to the given leaf taxon in
+        WoRMS API format
+        """
+        chain = leaf.parents
+        chain.append(leaf)
+
+        node = None
+        for t in reversed(chain):
+            node = {
+                "AphiaID": t.aphia_id,
+                "rank": t.rank,
+                "scientificname": t.scientific_name,
+                "child": node,
+            }
+        return node
+
+    def _get_ajax_by_name_part_results(self, request: Request, name_part: str) -> builtins.list[Taxon]:
+        """Get the list of Taxon results for the ajax_by_name_part endpoint based on the request parameters.
+
+        Args:
+            request: The HTTP request object containing query parameters for filtering and matching options.
+            name_part: The partial name to match against taxon scientific names, extracted from the URL path.
+
+        Returns:
+            A list of Taxon instances that match the given name part and filtering criteria.
+        """
+        name_part = (name_part or "").strip()
+        if not name_part:
+            return []
+
+        max_matches, rank_min, rank_max, excluded, combine_vernaculars, languages = (
+            self._validate_ajax_by_name_part_params(request)
+        )
+        rank_names = rank_names_for_range(rank_min, rank_max)
+
+        scientific_taxon_ids = _handle_scientific_name_input_and_candidates(
+            name_part,
+            rank_names,
+        )
+        vern_taxon_ids = _handle_vernacular_matches(name_part, rank_names, combine_vernaculars, languages, max_matches)
+        combined_ids = scientific_taxon_ids + vern_taxon_ids
+        combined_taxa = list(Taxon.objects.filter(aphia_id__in=combined_ids).select_related("parent", "valid_taxon"))
+        combined_taxa = _combine_taxa_list(combined_taxa, excluded, max_matches)
+        if not combined_taxa:
+            return []
+
+        resolved = []
+        seen_valid = set()
+        for taxon in combined_taxa:
+            valid_taxon = taxon.valid_taxon if taxon.valid_taxon_id else taxon
+            if valid_taxon.aphia_id in seen_valid:
+                continue
+            seen_valid.add(valid_taxon.aphia_id)
+            resolved.append(valid_taxon)
+            if len(resolved) >= max_matches:
+                break
+        return resolved
+
+    def _validate_ajax_by_name_part_params(
+        self, request: Request
+    ) -> tuple[int, int, int, set[int], bool, builtins.list[str]]:
+        """Validate and parse query parameters for the ajax_by_name_part endpoint.
+
+        Args:
+            request: The HTTP request object containing the query parameters.
+
+        Returns:
+            A tuple containing the parsed and validated parameters: max_matches, rank_min, rank_max,
+        excluded_ids, combine_vernaculars, languages
+        """
+        max_matches = int(request.query_params.get("max_matches", 20))
+        max_matches = min(max_matches, 50)
+
+        rank_min = int(request.query_params.get("rank_min", 0))
+        rank_max = int(request.query_params.get("rank_max", 0))
+
+        excluded = set()
+        for x in request.query_params.getlist("excluded_ids[]"):
+            try:
+                excluded.add(int(x))
+            except ValueError:
+                continue
+
+        combine_vernaculars = str(request.query_params.get("combine_vernaculars", "false")).lower() in (
+            "1",
+            "true",
+            "yes",
+        )
+        languages = [x.strip().lower() for x in request.query_params.getlist("languages[]") if x.strip()]
+        return max_matches, rank_min, rank_max, excluded, combine_vernaculars, languages
+
+    def _handle_taxamatch_names(
+        self,
+        per_input: builtins.list[dict],
+        max_results: int,
+        matched_ids_by_input_idx: dict[int, set[int]],
+    ) -> builtins.list[dict]:
+        """Handle a single query name for the match_names endpoint, appending results to the output list.
+
+        Args:
+            per_input: The list of input items with their candidate rows and token counts, as prepared for the
+        match_names endpoint.
+            max_results: The maximum number of matched taxa to return for this query name.
+            matched_ids_by_input_idx: A mapping from the index of the input item in per_input to the set of matched
+        NameIndex ids.
+
+        Returns:
+            A list of result dictionaries for each query name, containing the input name and a list of matched taxa.
+        """
+        results = []
+        for i, item in enumerate(per_input):
+            qname = item["input"]
+            candidates = item["candidates"]
+
+            if not qname or not candidates:
+                results.append([])
+                continue
+
+            matched_ids = matched_ids_by_input_idx.get(i, set())
+            matched_rows = [c for c in candidates if c.id in matched_ids]
+
+            if not matched_rows:
+                results.append([])
+                continue
+
+            taxon_ids_in_order = []
+            seen = set()
+            for row in matched_rows:
+                if row.taxon_id not in seen:
+                    seen.add(row.taxon_id)
+                    taxon_ids_in_order.append(row.taxon_id)
+
+            taxa = list(Taxon.objects.filter(aphia_id__in=taxon_ids_in_order).select_related("parent", "valid_taxon"))
+            taxa_by_id = {taxon.aphia_id: taxon for taxon in taxa}
+            ordered_taxa = [taxa_by_id[tid] for tid in taxon_ids_in_order if tid in taxa_by_id]
+
+            resolved = _handle_resolved_taxa(ordered_taxa, max_results)
+
+            results.append(TaxonWormsLikeSerializer(resolved, many=True).data)
+
+        return results
+
+
+def _handle_scientific_name_input(name: str) -> str:
+    """Handle and normalize scientific name input for the match_names_pair endpoint.
+
+    Args:
+        name: The raw scientific name input string.
+
+    Returns:
+        A normalized scientific name string suitable for matching, or an empty string if the input is invalid
+    """
+    name = (name or "").strip()
+    tokens = name.split()
+
+    if len(tokens) >= TOKENS_WITH_GENUS_SPECIES:
+        tokens[0] = tokens[0].capitalize()
+        return " ".join(tokens)
+
+    return name
+
+
+def _dedupe_keep_order(ids: list[int]) -> list[int]:
+    """Deduplicate a list of integers while preserving order.
+
+    Args:
+        ids: A list of integers that may contain duplicates.
+
+    Returns:
+        A new list of integers with duplicates removed, preserving the original order of first occurrence.
+    """
+    return list(dict.fromkeys(ids))
+
+
+def _handle_resolved_taxa(taxa: list[Taxon], max_results: int) -> list[Taxon]:
+    """Handle resolving a list of Taxon instances to their valid taxa, preserving order and limiting results.
+
+    Args:
+        taxa: A list of Taxon instances to resolve.
+        max_results: The maximum number of resolved valid taxa to return.
+
+    Returns:
+        A list of resolved valid Taxon instances, preserving the order of the input taxa and limited
+    to max_results.
+    """
+    resolved = []
+    seen_valid_ids = set()
+    for taxon in taxa:
+        valid_taxon = taxon.valid_taxon if taxon.valid_taxon_id else taxon
+        if valid_taxon.aphia_id in seen_valid_ids:
+            continue
+        seen_valid_ids.add(valid_taxon.aphia_id)
+        resolved.append(valid_taxon)
+
+        if len(resolved) >= max_results:
+            break
+    return resolved
+
+
+def _handle_scientific_name_input_and_candidates(
+    name_part: str,
+    rank_names: set[str] | None,
+) -> list[int]:
+    """Handle the scientific name input and candidate retrieval for the ajax_by_name_part endpoint.
+
+    Args:
+        name_part: The raw scientific name part to match against taxon names.
+        rank_names: An optional set of rank names to filter candidates by.
+
+    Returns:
+        A list of AphiaIDs for taxa that match the given scientific name part and filtering criteria
+    """
+    candidate_rows = candidate_name_rows(name_part, limit=300, rank_names=rank_names)
+
+    scientific_taxon_ids: list[int] = []
+    if candidate_rows:
+        normalized = _handle_scientific_name_input(name_part)
+
+        try:
+            batch_results = match_batch(
+                [
+                    {
+                        "input": normalized,
+                        "candidates": [{"id": r.id, "name": r.name_raw} for r in candidate_rows],
+                    }
+                ],
+                timeout=3.0,
+            )
+            matched_candidate_ids = set((batch_results[0] or {}).get("matched_ids") or [])
+            if matched_candidate_ids:
+                scientific_taxon_ids = _dedupe_keep_order(
+                    [r.taxon_id for r in candidate_rows if r.id in matched_candidate_ids]
+                )
+            else:
+                scientific_taxon_ids = _dedupe_keep_order([r.taxon_id for r in candidate_rows])
+
+        except TaxamatchError:
+            scientific_taxon_ids = _dedupe_keep_order([r.taxon_id for r in candidate_rows])
+    return scientific_taxon_ids
+
+
+def _handle_vernacular_matches(
+    name_part: str,
+    rank_names: set[str] | None,
+    combine_vernaculars: bool,
+    languages: list[str],
+    max_matches: int,
+) -> list[int]:
+    """Handle vernacular name matching for the ajax_by_name_part endpoint.
+
+    Args:
+        name_part: The raw name part to match against vernacular names.
+        rank_names: An optional set of rank names to filter candidates by.
+        combine_vernaculars: Whether to include vernacular matches in the results.
+        languages: A list of ISO639-3 language codes to filter vernacular names by.
+        max_matches: The maximum number of matches to return, used to limit number of vernacular candidates processed.
+
+    Returns:
+        A list of AphiaIDs for taxa that match the given name part in their vernacular names, filtered by the given
+    criteria.
+    """
+    vern_taxon_ids: list[int] = []
+    if combine_vernaculars:
+        vernacular_query_set = Vernacular.objects.all()
+
+        if languages:
+            vernacular_query_set = vernacular_query_set.filter(language_code__in=languages)
+
+        if rank_names is not None:
+            vernacular_query_set = vernacular_query_set.filter(taxon__rank__in=rank_names)
+
+        vern_taxon_ids = list(
+            vernacular_query_set.annotate(sim=TrigramSimilarity("name", name_part))
+            .filter(sim__gt=0.2)
+            .order_by("-sim")
+            .values_list("taxon_id", flat=True)
+            .distinct()[: max_matches * 2]
+        )
+    return vern_taxon_ids
+
+
+def _combine_taxa_list(
+    taxa: list[Taxon],
+    excluded: set[int],
+    max_matches: int,
+) -> list[int]:
+    """Combine and deduplicate scientific and vernacular taxon ID lists, applying exclusions and limits.
+
+    Args:
+        taxa: A list of Taxon objects to combine.
+        excluded: A set of AphiaIDs to exclude from the results.
+        max_matches: The maximum number of combined matches to return.
+
+    Returns:
+        A list of Taxon objects, excluding any in the excluded set and limited to max_matches.
+    """
+    filtered_combined_taxa = []
+    seen = set()
+    for taxon in taxa:
+        taxon_id = taxon.aphia_id
+        taxon_valid_id = taxon.valid_taxon_id if taxon.valid_taxon_id else taxon.aphia_id
+        if taxon_id in excluded or taxon_valid_id in excluded:
+            continue
+        if taxon_id in seen:
+            continue
+        seen.add(taxon_id)
+        filtered_combined_taxa.append(taxon)
+        if len(filtered_combined_taxa) >= max_matches:
+            break
+    return filtered_combined_taxa

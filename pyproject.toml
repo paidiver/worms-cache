@@ -1,0 +1,68 @@
+[build-system]
+requires = ["poetry-core>=1.0.0", "poetry-dynamic-versioning"]
+build-backend = "poetry_dynamic_versioning.backend"
+
+[tool.poetry]
+name = "worms-cache"
+version = "0.0.0"
+description = "WoRMS Cache is a caching layer for the WoRMS API, designed to improve performance and reduce load on the WoRMS servers by storing frequently accessed data locally."
+authors = []
+readme = "README.md"
+package-mode = false
+
+[tool.poetry.dependencies]
+python = "~3.13"
+Django = "4.2.3"
+djangorestframework = "3.15.2"
+psycopg = { extras = ["binary"], version = "^3.1" }
+drf-spectacular = "^0.27.0"
+drf-yasg = "^1.21.10"
+requests = "^2.31.0"
+gunicorn = "^25.0.3"
+
+[tool.poetry.group.lint]
+optional = true
+
+[tool.poetry.group.lint.dependencies]
+ruff = "^0.5"
+
+[tool.poetry.group.dev.dependencies]
+sqlalchemy = "^2.0.46"
+
+[tool.poetry.group.test]
+optional = true
+
+[tool.poetry.group.test.dependencies]
+pytest = "^7.3.0"
+pytest-cov = "^4.0.0"
+tox = "^4.0.0"
+
+[tool.poetry.group.build]
+optional = true
+
+[tool.poetry.group.build.dependencies]
+twine = "^6.1.0"
+importlib-metadata = "7.1.0"
+
+[tool.poetry-dynamic-versioning]
+enable = true
+vcs = "git"
+style = "semver"
+
+[tool.poetry-dynamic-versioning.substitution]
+files = ["config/__init__.py"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+extend-exclude = [
+  ".venv",
+  "migrations",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["api", "config"]
