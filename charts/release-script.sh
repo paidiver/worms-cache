@@ -52,7 +52,6 @@ cr index \
 tmprepo="$(mktemp -d)"
 git init "${tmprepo}" >/dev/null
 git -C "${tmprepo}" checkout --orphan "${PAGES_BRANCH}" >/dev/null
-
 cp .cr-index/index.yaml "${tmprepo}/index.yaml"
 
 git -C "${tmprepo}" add index.yaml
