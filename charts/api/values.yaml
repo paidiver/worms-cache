@@ -29,6 +29,8 @@ api:
       secretKey: django-secret-key
     djangoDebug: "1"
     taxamatchUrl: ""
+    djangoCorsAllowedOrigins: ""
+    djangoCorsAllowAll: "1"
     ingestApiToken:
       secretName: my-app-secrets
       secretKey: ingest-api-token

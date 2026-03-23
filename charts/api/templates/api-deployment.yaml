@@ -54,6 +54,10 @@ spec:
               value: "{{ .Values.api.env.djangoDebug }}"
             - name: DJANGO_ALLOWED_HOSTS
               value: localhost,127.0.0.1,0.0.0.0,{{ .Values.ingress.host }}
+            - name: DJANGO_CORS_ALLOWED_ORIGINS
+              value: "{{ .Values.api.env.djangoCorsAllowedOrigins }}"
+            - name: DJANGO_CORS_ALLOW_ALL
+              value: "{{ .Values.api.env.djangoCorsAllowAll }}"
             - name: TAXAMATCH_URL
               value: {{ default (printf "http://%s-taxamatch-service:8080" .Release.Name) .Values.api.env.taxamatchUrl | quote }}
             - name: WORMS_API_BASE_URL

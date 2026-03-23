@@ -10,6 +10,9 @@ ingress:
 
 api:
   workers: 1
+  env:
+    djangoCorsAllowedOrigins: "https://paidiver.github.io"
+    djangoCorsAllowAll: "0"
 
 postgresql:
   primary:
