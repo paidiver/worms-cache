@@ -92,19 +92,21 @@ cp .env.example .env
 Example contents:
 
 ```env
-POSTGRES_DB=worms-cachedb
-POSTGRES_USER=myuser
-POSTGRES_PASSWORD=mypassword
-POSTGRES_HOST=db
-POSTGRES_PORT=5432
+POSTGRES_DB=worms-cachedb # Database name for PostgreSQL
+POSTGRES_USER=myuser # PostgreSQL username
+POSTGRES_PASSWORD=mypassword # PostgreSQL password
+POSTGRES_HOST=db # Hostname for PostgreSQL (matches service name in docker-compose)
+POSTGRES_PORT=5432 # PostgreSQL port
 
-DJANGO_SECRET_KEY=dev-secret-key-change-me
-DJANGO_DEBUG=1
-DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,0.0.0.0
-WORMS_API_BASE_URL=https://marinespecies.org/rest
-TAXAMATCH_URL=http://taxamatch:8080
+DJANGO_SECRET_KEY=dev-secret-key-change-me # Secret key for Django (change for production)
+DJANGO_DEBUG=1 # Enable debug mode (set to 0 for production)
+DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,0.0.0.0 # Allowed hosts for Django
+DJANGO_CORS_ALLOWED_ORIGINS=http://localhost:3000,https://paidiver.github.io # Allowed origins for CORS
+DJANGO_CORS_ALLOW_ALL=1 # Allow all origins for CORS (set to 0 for production)
+WORMS_API_BASE_URL=https://marinespecies.org/rest # Base URL for WoRMS API
+TAXAMATCH_URL=http://taxamatch:8080 # URL for Taxamatch microservice
 
-INGEST_API_TOKEN=mysecrettoken
+INGEST_API_TOKEN=mysecrettoken # Token for authenticating cache ingestion API (set in production)
 ```
 
 ### 2. Build and run the stack
