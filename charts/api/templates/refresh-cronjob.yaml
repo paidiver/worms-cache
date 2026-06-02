@@ -16,22 +16,6 @@ spec:
           securityContext:
             {{- toYaml .Values.podSecurityContext | nindent 12 }}
 
-          initContainers:
-            - name: wait-for-postgres
-              image: bitnami/postgresql@{{ .Values.postgresql.image.digest }}
-              command:
-                - sh
-                - -ec
-                - |
-                  echo "Waiting for PostgreSQL..."
-                  until pg_isready -h "$POSTGRES_HOST" -p "$POSTGRES_PORT" -U "$POSTGRES_USER"; do
-                    sleep 2
-                  done
-              securityContext:
-                {{- toYaml .Values.api.initContainer.securityContext | nindent 16 }}
-                {{- toYaml .Values.containerSecurityContext | nindent 16 }}
-              env:
-                {{- include "api.postgresEnv" . | nindent 16 }}
 
           containers:
             - name: refresh
@@ -42,7 +26,6 @@ spec:
                 runAsNonRoot: true
                 {{- toYaml .Values.containerSecurityContext | nindent 16 }}
               env:
-                {{- include "api.postgresEnv" . | nindent 16 }}
                 - name: DJANGO_SECRET_KEY
                   valueFrom:
                     secretKeyRef:

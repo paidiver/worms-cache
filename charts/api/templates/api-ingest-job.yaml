@@ -26,19 +26,30 @@ spec:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       initContainers:
         - name: wait-for-postgres
-          image: bitnami/postgresql@{{ .Values.postgresql.image.digest }}
+          image: "{{ .Values.api.image.repository }}:{{ .Values.api.image.tag }}"
+          imagePullPolicy: IfNotPresent
           command:
             - sh
             - -ec
             - |
-              echo "Waiting for PostgreSQL..."
+              echo "Waiting for PostgreSQL service availability..."
               until pg_isready \
                 -h $POSTGRES_HOST \
                 -p $POSTGRES_PORT \
                 -U $POSTGRES_USER; do
                 sleep 2
               done
-          env: {{ include "api.postgresEnv" . | nindent 12 }}
+          env:
+            - name: POSTGRES_HOST
+              value: "postgres-postgresql"
+            - name: POSTGRES_PORT
+              value: "5432"
+            - name: POSTGRES_USER
+              value: "{{ .Values.auth.username }}"
+            - name: DB_HOST
+              value: "postgres-postgresql"
+            - name: DB_PORT
+              value: "5432"
       containers:
         - name: ingest
           image: "{{ .Values.ingestJob.image.repository }}:{{ .Values.ingestJob.image.tag }}"
@@ -51,7 +62,6 @@ spec:
               drop:
                 - ALL
           env:
-            {{ include "api.postgresEnv" . | nindent 12 }}
             - name: DJANGO_SECRET_KEY
               valueFrom:
                 secretKeyRef:
@@ -59,6 +69,27 @@ spec:
                   key: {{ .Values.api.env.djangoSecretKey.secretKey }}
             - name: DJANGO_DEBUG
               value: "{{ .Values.api.env.djangoDebug }}"
+
+            - name: POSTGRES_HOST
+              value: "postgres-postgresql"
+            - name: POSTGRES_PORT
+              value: "5432"
+            - name: POSTGRES_DB
+              value: "{{ .Values.auth.database }}"
+            - name: POSTGRES_USER
+              value: "{{ .Values.auth.username }}"
+            - name: POSTGRES_PASSWORD
+              value: "{{ .Values.auth.password }}"
+            - name: DB_HOST
+              value: "postgres-postgresql"
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              value: "{{ .Values.auth.database }}"
+            - name: DB_USER
+              value: "{{ .Values.auth.username }}"
+            - name: DB_PASSWORD
+              value: "{{ .Values.auth.password }}"
           command:
             - sh
             - -ec
