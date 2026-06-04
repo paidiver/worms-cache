@@ -43,6 +43,8 @@ spec:
           securityContext:
             {{- toYaml .Values.taxamatch.securityContext | nindent 12 }}
             {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.taxamatch.resources | nindent 12 }}
       imagePullSecrets:
         - name: {{ .Values.taxamatch.image.imagePullSecret }}
 {{- end }}

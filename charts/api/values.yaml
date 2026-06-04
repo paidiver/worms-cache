@@ -126,3 +126,7 @@ refreshCron:
   enabled: true
   schedule: "0 3 * * *"
   args: ["python", "manage.py", "refresh_worms", "--cache-ttl", "2"]
+
+db:
+  host: "postgres-postgresql"
+  port: "5432"

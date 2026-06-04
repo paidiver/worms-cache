@@ -29,6 +29,9 @@ spec:
             runAsGroup: 1000
             runAsNonRoot: true
             allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           command:
             - sh
             - -ec
@@ -42,15 +45,22 @@ spec:
               done
           env:
             - name: POSTGRES_HOST
-              value: "postgres-postgresql"
+              value: {{ .Values.db.host | quote }}
             - name: POSTGRES_PORT
-              value: "5432"
+              value: {{ .Values.db.port | default "5432" | quote }}
             - name: POSTGRES_USER
               value: "{{ .Values.auth.username }}"
             - name: DB_HOST
-              value: "postgres-postgresql"
+              value: {{ .Values.db.host | quote }}
             - name: DB_PORT
-              value: "5432"
+              value: {{ .Values.db.port | default "5432" | quote }}
+          resources:
+            requests:
+              cpu: "20m"
+              memory: "64Mi"
+            limits:
+              cpu: "50m"
+              memory: "128Mi"
       containers:
         - name: api
           image: "{{ .Values.api.image.repository }}:{{ .Values.api.image.tag }}"
@@ -67,9 +77,9 @@ spec:
               value: "{{ .Values.api.env.djangoDebug }}"
 
             - name: POSTGRES_HOST
-              value: "postgres-postgresql"
+              value: {{ .Values.db.host | quote }}
             - name: POSTGRES_PORT
-              value: "5432"
+              value: {{ .Values.db.port | default "5432" | quote }}
             - name: POSTGRES_DB
               value: "{{ .Values.auth.database }}"
             - name: POSTGRES_USER
@@ -100,5 +110,7 @@ spec:
           securityContext:
             {{- toYaml .Values.api.securityContext | nindent 12 }}
             {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.api.resources | nindent 12 }}
       imagePullSecrets:
         - name: worms-cache-api-ghcr-pull-secret

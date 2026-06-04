@@ -25,6 +25,9 @@ spec:
             runAsGroup: 1000
             runAsNonRoot: true
             allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           command:
             - sh
             - -ec
@@ -38,15 +41,15 @@ spec:
               done
           env:
             - name: POSTGRES_HOST
-              value: "postgres-postgresql"
+              value: {{ .Values.db.host | quote }}
             - name: POSTGRES_PORT
-              value: "5432"
+              value: {{ .Values.db.port | default "5432" | quote }}
             - name: POSTGRES_USER
               value: "{{ .Values.auth.username }}"
             - name: DB_HOST
-              value: "postgres-postgresql"
+              value: {{ .Values.db.host | quote }}
             - name: DB_PORT
-              value: "5432"
+              value: {{ .Values.db.port | default "5432" | quote }}
       containers:
         - name: migrate
           image: "{{ .Values.migrateJob.image.repository }}:{{ .Values.migrateJob.image.tag }}"
@@ -61,9 +64,9 @@ spec:
               value: "{{ .Values.api.env.djangoDebug }}"
 
             - name: POSTGRES_HOST
-              value: "postgres-postgresql"
+              value: {{ .Values.db.host | quote }}
             - name: POSTGRES_PORT
-              value: "5432"
+              value: {{ .Values.db.port | default "5432" | quote }}
             - name: POSTGRES_DB
               value: "{{ .Values.auth.database }}"
             - name: POSTGRES_USER
@@ -72,9 +75,9 @@ spec:
               value: "{{ .Values.auth.password }}"
 
             - name: DB_HOST
-              value: "postgres-postgresql"
+              value: {{ .Values.db.host | quote }}
             - name: DB_PORT
-              value: "5432"
+              value: {{ .Values.db.port | default "5432" | quote }}
             - name: DB_NAME
               value: "{{ .Values.auth.database }}"
             - name: DB_USER
