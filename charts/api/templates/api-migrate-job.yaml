@@ -40,31 +40,13 @@ spec:
                 sleep 2
               done
           env:
-            - name: POSTGRES_HOST
-              value: {{ .Values.db.host | quote }}
-            - name: POSTGRES_PORT
-              value: {{ .Values.db.port | default "5432" | quote }}
-            - name: POSTGRES_DB
-              value: "{{ .Values.auth.database }}"
-            - name: POSTGRES_USER
-              value: "{{ .Values.auth.username }}"
-            - name: POSTGRES_PASSWORD
-              value: "{{ .Values.auth.password }}"
-            - name: DB_HOST
-              value: {{ .Values.db.host | quote }}
-            - name: DB_PORT
-              value: {{ .Values.db.port | default "5432" | quote }}
-            - name: DB_NAME
-              value: "{{ .Values.auth.database }}"
-            - name: DB_USER
-              value: "{{ .Values.auth.username }}"
-            - name: DB_PASSWORD
-              value: "{{ .Values.auth.password }}"
+            {{- include "worms-cache-api.dbEnv" . | nindent 12 }}
       containers:
         - name: migrate
           image: "{{ .Values.migrateJob.image.repository }}:{{ .Values.migrateJob.image.tag }}"
           imagePullPolicy: {{ .Values.migrateJob.image.pullPolicy }}
           env:
+            {{- include "worms-cache-api.dbEnv" . | nindent 12 }}
             - name: DJANGO_SECRET_KEY
               valueFrom:
                 secretKeyRef:
@@ -72,28 +54,6 @@ spec:
                   key: {{ .Values.api.env.djangoSecretKey.secretKey }}
             - name: DJANGO_DEBUG
               value: "{{ .Values.api.env.djangoDebug }}"
-
-            - name: POSTGRES_HOST
-              value: {{ .Values.db.host | quote }}
-            - name: POSTGRES_PORT
-              value: {{ .Values.db.port | default "5432" | quote }}
-            - name: POSTGRES_DB
-              value: "{{ .Values.auth.database }}"
-            - name: POSTGRES_USER
-              value: "{{ .Values.auth.username }}"
-            - name: POSTGRES_PASSWORD
-              value: "{{ .Values.auth.password }}"
-
-            - name: DB_HOST
-              value: {{ .Values.db.host | quote }}
-            - name: DB_PORT
-              value: {{ .Values.db.port | default "5432" | quote }}
-            - name: DB_NAME
-              value: "{{ .Values.auth.database }}"
-            - name: DB_USER
-              value: "{{ .Values.auth.username }}"
-            - name: DB_PASSWORD
-              value: "{{ .Values.auth.password }}"
           command:
             - sh
             - -ec

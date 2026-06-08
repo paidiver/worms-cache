@@ -36,7 +36,7 @@ spec:
             - sh
             - -ec
             - |
-              echo "Waiting for PostgreSQL service availability..."
+              echo "Waiting for PostgreSQL..."
               until pg_isready \
                 -h $POSTGRES_HOST \
                 -p $POSTGRES_PORT \
@@ -44,16 +44,7 @@ spec:
                 sleep 2
               done
           env:
-            - name: POSTGRES_HOST
-              value: {{ .Values.db.host | quote }}
-            - name: POSTGRES_PORT
-              value: {{ .Values.db.port | default "5432" | quote }}
-            - name: POSTGRES_USER
-              value: "{{ .Values.auth.username }}"
-            - name: DB_HOST
-              value: {{ .Values.db.host | quote }}
-            - name: DB_PORT
-              value: {{ .Values.db.port | default "5432" | quote }}
+            {{- include "worms-cache-api.dbEnv" . | nindent 12 }}
           resources:
             requests:
               cpu: "20m"
@@ -68,6 +59,7 @@ spec:
           ports:
             - containerPort: {{ .Values.api.port }}
           env:
+            {{- include "worms-cache-api.dbEnv" . | nindent 12 }}
             - name: DJANGO_SECRET_KEY
               valueFrom:
                 secretKeyRef:
@@ -75,18 +67,6 @@ spec:
                   key: {{ .Values.api.env.djangoSecretKey.secretKey }}
             - name: DJANGO_DEBUG
               value: "{{ .Values.api.env.djangoDebug }}"
-
-            - name: POSTGRES_HOST
-              value: {{ .Values.db.host | quote }}
-            - name: POSTGRES_PORT
-              value: {{ .Values.db.port | default "5432" | quote }}
-            - name: POSTGRES_DB
-              value: "{{ .Values.auth.database }}"
-            - name: POSTGRES_USER
-              value: "{{ .Values.auth.username }}"
-            - name: POSTGRES_PASSWORD
-              value: "{{ .Values.auth.password }}"
-
             - name: DJANGO_ALLOWED_HOSTS
               value: localhost,127.0.0.1,0.0.0.0,{{ .Values.ingress.host }}
             - name: DJANGO_CORS_ALLOWED_ORIGINS
