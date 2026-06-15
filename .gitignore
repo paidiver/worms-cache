@@ -11,3 +11,4 @@ data/*
 .idea/
 **/.cr-release-packages/
 **/.cr-index/
+rust_service/target/*
