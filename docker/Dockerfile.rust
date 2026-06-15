@@ -1,0 +1,49 @@
+# ─── Build stage ─────────────────────────────────────────────────────────────
+# Uses the official Rust image which includes cargo and the full toolchain.
+# Build context must be the repository root so that rust_service/ is reachable.
+FROM rust:1.88-slim AS builder
+
+WORKDIR /build
+
+# Install build-time system deps (OpenSSL needed by reqwest/sqlx;
+# curl needed by utoipa-swagger-ui build script to download Swagger UI assets)
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends pkg-config libssl-dev curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# --- Dependency caching layer ------------------------------------------------
+# Copy only the manifest files first.  Docker re-uses the compiled dependency
+# layer as long as Cargo.toml / Cargo.lock are unchanged.
+COPY rust_service/Cargo.toml rust_service/Cargo.lock* ./
+
+# Compile a dummy binary so that all dependencies are compiled and cached.
+RUN mkdir src \
+    && echo 'fn main() {}' > src/main.rs \
+    && cargo build --release \
+    && rm -f target/release/deps/worms_cache_rust* \
+             target/release/worms-cache-rust
+
+# --- Application build -------------------------------------------------------
+COPY rust_service/src ./src
+# Touch main.rs so Cargo knows to recompile our crate (not the cached deps)
+RUN touch src/main.rs && cargo build --release
+
+# ─── Runtime stage ───────────────────────────────────────────────────────────
+FROM debian:bookworm-slim AS runtime
+
+# Runtime dependencies: OpenSSL + CA certificates for TLS (reqwest/sqlx)
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libssl3 ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN useradd -m -u 1000 paidiver
+
+WORKDIR /app
+
+COPY --from=builder /build/target/release/worms-cache-rust ./worms-cache-rust
+
+USER paidiver
+
+EXPOSE 8002
+
+CMD ["./worms-cache-rust"]
