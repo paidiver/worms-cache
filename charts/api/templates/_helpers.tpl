@@ -49,29 +49,3 @@ Selector labels
 app.kubernetes.io/name: {{ include "worms-cache-api.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
-
-{{/*
-PostgreSQL connection credentials used by all api-*.yaml files
-*/}}
-{{- define "worms-cache-api.dbEnv" -}}
-- name: POSTGRES_HOST
-  value: {{ .Values.db.host | quote }}
-- name: POSTGRES_PORT
-  value: {{ .Values.db.port | default "5432" | quote }}
-- name: POSTGRES_DB
-  value: "{{ .Values.auth.database }}"
-- name: POSTGRES_USER
-  value: "{{ .Values.auth.username }}"
-- name: POSTGRES_PASSWORD
-  value: "{{ .Values.auth.password }}"
-- name: DB_HOST
-  value: {{ .Values.db.host | quote }}
-- name: DB_PORT
-  value: {{ .Values.db.port | default "5432" | quote }}
-- name: DB_NAME
-  value: "{{ .Values.auth.database }}"
-- name: DB_USER
-  value: "{{ .Values.auth.username }}"
-- name: DB_PASSWORD
-  value: "{{ .Values.auth.password }}"
-{{- end -}}

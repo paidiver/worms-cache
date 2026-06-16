@@ -59,14 +59,6 @@ global:
   defaultStorageClass: ""
 
 
-migrateJob:
-  image:
-    imagePullSecret: "worms-cache-api-ghcr-pull-secret"
-
-ingestJob:
-  image:
-    imagePullSecret: "worms-cache-api-ghcr-pull-secret"
-
 # postgresql:
 #   image:
 #     digest: sha256:8c7f26a8ba4257fcbf4445bd50e156cbc7d8114942fb3d6523320c7732781b54
@@ -108,7 +100,7 @@ migrateJob:
     repository: ghcr.io/paidiver/worms-cache
     tag: latest
     pullPolicy: Always
-    imagePullSecret: ""
+    imagePullSecret: "worms-cache-api-ghcr-pull-secret"
 
 ingestJob:
   enabled: false
@@ -118,7 +110,7 @@ ingestJob:
     repository: ghcr.io/paidiver/worms-cache
     tag: latest
     pullPolicy: Always
-    imagePullSecret: ""
+    imagePullSecret: "worms-cache-api-ghcr-pull-secret"
   aphiaIdsFile: "initial_aphia_ids.txt"
   addRanks: true
 
@@ -130,3 +122,7 @@ refreshCron:
 db:
   host: "postgres-postgresql"
   port: "5432"
+  auth:
+    username: ""
+    database: ""
+    existingSecret: ""
