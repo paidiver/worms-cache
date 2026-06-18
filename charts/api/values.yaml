@@ -122,7 +122,8 @@ refreshCron:
 db:
   host: "postgres-postgresql"
   port: "5432"
-  auth:
-    username: ""
-    database: ""
-    existingSecret: ""
+
+auth:
+  username: ""
+  database: ""
+  existingSecret: ""
