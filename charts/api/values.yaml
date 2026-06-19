@@ -17,7 +17,7 @@ api:
     repository: ghcr.io/paidiver/worms-cache
     tag: latest
     pullPolicy: Always
-    imagePullSecret: ""
+    imagePullSecret: "worms-cache-api-ghcr-pull-secret"
   port: 8000
   timeout: 300
   workers: 1
@@ -58,17 +58,18 @@ fullnameOverride: ""
 global:
   defaultStorageClass: ""
 
-postgresql:
-  image:
-    digest: sha256:8c7f26a8ba4257fcbf4445bd50e156cbc7d8114942fb3d6523320c7732781b54
-  auth:
-    enablePostgresUser: true
-    username: ""
-    existingSecret: ""
-    database: ""
-  primary:
-    service:
-      port: "5432"
+
+# postgresql:
+#   image:
+#     digest: sha256:8c7f26a8ba4257fcbf4445bd50e156cbc7d8114942fb3d6523320c7732781b54
+#   auth:
+#     enablePostgresUser: true
+#     username: ""
+#     existingSecret: ""
+#     database: ""
+#   primary:
+#     service:
+#       port: "5432"
 
 taxamatch:
   enabled: true
@@ -99,7 +100,7 @@ migrateJob:
     repository: ghcr.io/paidiver/worms-cache
     tag: latest
     pullPolicy: Always
-    imagePullSecret: ""
+    imagePullSecret: "worms-cache-api-ghcr-pull-secret"
 
 ingestJob:
   enabled: false
@@ -109,7 +110,7 @@ ingestJob:
     repository: ghcr.io/paidiver/worms-cache
     tag: latest
     pullPolicy: Always
-    imagePullSecret: ""
+    imagePullSecret: "worms-cache-api-ghcr-pull-secret"
   aphiaIdsFile: "initial_aphia_ids.txt"
   addRanks: true
 
@@ -117,3 +118,12 @@ refreshCron:
   enabled: true
   schedule: "0 3 * * *"
   args: ["python", "manage.py", "refresh_worms", "--cache-ttl", "2"]
+
+db:
+  host: "postgres-postgresql"
+  port: "5432"
+
+auth:
+  username: ""
+  database: ""
+  existingSecret: ""

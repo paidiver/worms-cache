@@ -163,16 +163,16 @@ class TaxonViewSetTests(APITestCase):
         """
         return reverse("taxa-ids-with-descendants")
 
-    def ajax_by_name_part_only_ids_url(self, name_part: str) -> str:
-        """Return the URL for the AJAX by name part only_ids endpoint.
+    def ajax_by_name_part_only_id_info_url(self, name_part: str) -> str:
+        """Return the URL for the AJAX by name part only_id_info endpoint.
 
         Args:
             name_part: The part of the scientific name to search for.
 
         Returns:
-            str: The URL for the AJAX by name part only_ids endpoint with the given name part.
+            str: The URL for the AJAX by name part only_id_info endpoint with the given name part.
         """
-        return reverse("taxa-ajax-by-name-part-only-aphiaid", kwargs={"name_part": name_part})
+        return reverse("taxa-ajax-by-name-part-only-id-info", kwargs={"name_part": name_part})
 
     def test_list_taxa(self):
         """Test that the list endpoint returns taxa with expected fields and ordering."""
@@ -622,9 +622,23 @@ class TaxonViewSetTests(APITestCase):
         self.assertIn(self.invalid.aphia_id, returned_ids)
         self.assertEqual(len(returned_ids), len(set(returned_ids)))
 
+    def test_ids_with_descendants_returns_full_taxon_objects_when_id_only_false(self):
+        """Test that ids_with_descendants returns full taxon objects when id_only=false."""
+        resp = self.client.get(
+            self.ids_with_descendants_url(),
+            [("aphia_ids[]", self.root.aphia_id), ("id_only", "false")],
+        )
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+
+        returned_ids = [item["AphiaID"] for item in resp.data]
+        self.assertIn(self.root.aphia_id, returned_ids)
+        self.assertIn(self.phylum.aphia_id, returned_ids)
+        self.assertIn(self.leaf.aphia_id, returned_ids)
+        self.assertIn(self.invalid.aphia_id, returned_ids)
+
     @patch("api.views.taxon.match_batch")
-    def test_ajax_by_name_part_only_aphiaid_returns_ids(self, mock_match_batch: MagicMock):
-        """Test that ajax_by_name_part_only_aphiaid returns only AphiaIDs for matched taxa.
+    def test_ajax_by_name_part_only_id_info_returns_ids_when_id_only_true(self, mock_match_batch: MagicMock):
+        """Test that ajax_by_name_part_only_id_info returns only AphiaIDs when id_only=true.
 
         Args:
             mock_match_batch: The mocked match_batch function to control its behavior in the test.
@@ -632,8 +646,9 @@ class TaxonViewSetTests(APITestCase):
         mock_match_batch.return_value = [{"matched_ids": []}]
 
         resp = self.client.get(
-            self.ajax_by_name_part_only_ids_url("gadus"),
+            self.ajax_by_name_part_only_id_info_url("gadus"),
             {
+                "id_only": "true",
                 "combine_vernaculars": "false",
                 "max_matches": 20,
             },
@@ -642,8 +657,8 @@ class TaxonViewSetTests(APITestCase):
         self.assertEqual(resp.data, [self.leaf.aphia_id])
 
     @patch("api.views.taxon.match_batch")
-    def test_ajax_by_name_part_only_aphiaid_returns_204_when_no_results(self, mock_match_batch: MagicMock):
-        """Test that ajax_by_name_part_only_aphiaid returns 204 when no matches are found.
+    def test_ajax_by_name_part_only_id_info_returns_dicts_when_id_only_false(self, mock_match_batch: MagicMock):
+        """Test that ajax_by_name_part_only_id_info returns dicts when id_only=false.
 
         Args:
             mock_match_batch: The mocked match_batch function to control its behavior in the test.
@@ -651,8 +666,32 @@ class TaxonViewSetTests(APITestCase):
         mock_match_batch.return_value = [{"matched_ids": []}]
 
         resp = self.client.get(
-            self.ajax_by_name_part_only_ids_url("doesnotexist"),
+            self.ajax_by_name_part_only_id_info_url("gadus"),
             {
+                "id_only": "false",
+                "combine_vernaculars": "false",
+                "max_matches": 20,
+            },
+        )
+        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            resp.data,
+            [{"aphia_id": self.leaf.aphia_id, "scientific_name": self.leaf.scientific_name, "rank": self.leaf.rank}],
+        )
+
+    @patch("api.views.taxon.match_batch")
+    def test_ajax_by_name_part_only_id_info_returns_204_when_no_results(self, mock_match_batch: MagicMock):
+        """Test that ajax_by_name_part_only_id_info returns 204 when no matches are found.
+
+        Args:
+            mock_match_batch: The mocked match_batch function to control its behavior in the test.
+        """
+        mock_match_batch.return_value = [{"matched_ids": []}]
+
+        resp = self.client.get(
+            self.ajax_by_name_part_only_id_info_url("doesnotexist"),
+            {
+                "id_only": "false",
                 "combine_vernaculars": "false",
                 "max_matches": 20,
             },

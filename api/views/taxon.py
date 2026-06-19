@@ -116,6 +116,13 @@ class TaxonViewSet(viewsets.ReadOnlyModelViewSet):
                 required=True,
                 description="List of AphiaIDs whose direct children should be included.",
             ),
+            OpenApiParameter(
+                name="id_only",
+                type=OpenApiTypes.BOOL,
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description="If true (default), return only AphiaIDs. If false, return full taxon objects.",
+            ),
         ],
     )
     @action(detail=False, methods=["get"], url_path="ids_with_descendants")
@@ -129,9 +136,9 @@ class TaxonViewSet(viewsets.ReadOnlyModelViewSet):
             **kwargs: Additional keyword arguments passed to the method.
 
         Returns:
-            A Response object containing a list of AphiaIDs corresponding to the taxa identified by the provided
-        "aphia_ids[]" query parameter and all of their descendant taxa. If no valid "aphia_ids[]" are provided, a 400
-        Bad Request response is returned.
+            A Response object containing either a list of AphiaIDs corresponding to the taxa identified by the
+        provided "aphia_ids[]" query parameter and all of their descendant taxa (default), or full taxon objects when
+        id_only=false. If no valid "aphia_ids[]" are provided, a 400 Bad Request response is returned.
         """
         aphia_ids = self._get_aphia_ids_from_query(request)
         if not aphia_ids:
@@ -139,26 +146,31 @@ class TaxonViewSet(viewsets.ReadOnlyModelViewSet):
                 {"detail": "aphia_ids[] must contain at least one integer."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        id_only = request.query_params.get("id_only", "true").lower() in ("1", "true", "yes")
+
         taxa = list(
             Taxon.objects.filter(aphia_id__in=aphia_ids)
             .select_related("parent", "valid_taxon")
             .order_by("scientific_name")
         )
 
-        combined_ids = []
+        combined_taxa = []
         seen = set()
 
         for taxon in taxa:
             if taxon.aphia_id not in seen:
                 seen.add(taxon.aphia_id)
-                combined_ids.append(taxon.aphia_id)
+                combined_taxa.append(taxon)
 
             for descendant in taxon.descendants:
                 if descendant.aphia_id not in seen:
                     seen.add(descendant.aphia_id)
-                    combined_ids.append(descendant.aphia_id)
+                    combined_taxa.append(descendant)
 
-        return Response(combined_ids)
+        if id_only:
+            return Response([taxon.aphia_id for taxon in combined_taxa])
+
+        return Response(self.get_serializer(combined_taxa, many=True).data)
 
     def _get_aphia_ids_from_query(self, request: Request) -> builtins.list[int]:
         """Extract and validate a list of AphiaIDs from the query parameters."""
@@ -306,29 +318,60 @@ class TaxonViewSet(viewsets.ReadOnlyModelViewSet):
         return Response(TaxonWormsLikeSerializer(resolved, many=True).data)
 
     @extend_schema(
-        parameters=AJAX_BY_NAME_PART_PARAMETERS,
+        parameters=AJAX_BY_NAME_PART_PARAMETERS
+        + [
+            OpenApiParameter(
+                name="id_only",
+                type=OpenApiTypes.BOOL,
+                required=False,
+                description="If true (default), return only AphiaIDs. If false, return id/name/rank objects.",
+            )
+        ],
         responses={
             200: OpenApiResponse(
-                description="List of matched AphiaIDs.",
-                examples=[{"value": [127160, 1371, 248099]}],
+                description="List of matched AphiaIDs, or id/name/rank objects when id_only=false.",
+                examples=[
+                    {"value": [127160, 1371, 248099]},
+                    {
+                        "value": [
+                            {"aphia_id": 127160, "scientific_name": "Gadus morhua", "rank": "Species"},
+                            {"aphia_id": 1371, "scientific_name": "Gadus", "rank": "Genus"},
+                        ]
+                    },
+                ],
             )
         },
     )
-    @action(detail=False, methods=["get"], url_path=r"ajax_by_name_part/only_ids/(?P<name_part>[^/]+)")
-    def ajax_by_name_part_only_aphiaid(self, request: Request, name_part: str) -> Response:
-        """Endpoint for AJAX autocomplete of taxon names, returning only AphiaIDs.
+    @action(detail=False, methods=["get"], url_path=r"ajax_by_name_part/only_id_info/(?P<name_part>[^/]+)")
+    def ajax_by_name_part_only_id_info(self, request: Request, name_part: str) -> Response:
+        """Endpoint for AJAX autocomplete of taxon names, returning IDs or basic id/name/rank info.
 
         Args:
             request: The HTTP request object, expected to contain query parameters for filtering and matching options.
             name_part: The path parameter containing the partial name to match against taxon scientific names.
 
         Returns:
-            A Response object containing a list of matched AphiaIDs, or a 204 No Content if no matches are found.
+            A Response object containing a list of matched AphiaIDs when id_only=true, otherwise a list of dicts with
+        aphia_id, scientific_name, and rank. Returns 204 No Content when no matches are found.
         """
         resolved = self._get_ajax_by_name_part_results(request, name_part)
         if not resolved:
             return Response(status=status.HTTP_204_NO_CONTENT)
-        return Response([taxon.aphia_id for taxon in resolved])
+
+        id_only = request.query_params.get("id_only", "true").lower() in ("1", "true", "yes")
+        if id_only:
+            return Response([taxon.aphia_id for taxon in resolved])
+
+        return Response(
+            [
+                {
+                    "aphia_id": taxon.aphia_id,
+                    "scientific_name": taxon.scientific_name,
+                    "rank": taxon.rank,
+                }
+                for taxon in resolved
+            ]
+        )
 
     @extend_schema(
         parameters=[

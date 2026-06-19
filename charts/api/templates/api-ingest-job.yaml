@@ -26,19 +26,21 @@ spec:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       initContainers:
         - name: wait-for-postgres
-          image: bitnami/postgresql@{{ .Values.postgresql.image.digest }}
+          image: "{{ .Values.api.image.repository }}:{{ .Values.api.image.tag }}"
+          imagePullPolicy: IfNotPresent
           command:
             - sh
             - -ec
             - |
-              echo "Waiting for PostgreSQL..."
+              echo "Waiting for PostgreSQL service availability..."
               until pg_isready \
                 -h $POSTGRES_HOST \
                 -p $POSTGRES_PORT \
                 -U $POSTGRES_USER; do
                 sleep 2
               done
-          env: {{ include "api.postgresEnv" . | nindent 12 }}
+          env:
+            {{- include "worms-cache-api.dbEnv" . | nindent 12 }}
       containers:
         - name: ingest
           image: "{{ .Values.ingestJob.image.repository }}:{{ .Values.ingestJob.image.tag }}"
@@ -51,7 +53,7 @@ spec:
               drop:
                 - ALL
           env:
-            {{ include "api.postgresEnv" . | nindent 12 }}
+            {{- include "worms-cache-api.dbEnv" . | nindent 12 }}
             - name: DJANGO_SECRET_KEY
               valueFrom:
                 secretKeyRef:

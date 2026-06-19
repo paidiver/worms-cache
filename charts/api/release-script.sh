@@ -3,7 +3,7 @@ set -euo pipefail
 
 OWNER="paidiver"
 REPO="worms-cache"
-CHART_DIR="charts/api"
+CHART_DIR="charts"
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 cd "${REPO_ROOT}"
