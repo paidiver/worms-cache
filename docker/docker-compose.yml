@@ -31,6 +31,23 @@ services:
       - ../docker/scripts:/tmp/scripts
     networks:
       - shared_services
+  worms-cache-rust:
+    build:
+      context: ../
+      dockerfile: docker/Dockerfile.rust
+    env_file:
+      - ../.env
+    environment:
+      RUST_API_PORT: "8002"
+      TAXAMATCH_URL: "http://taxamatch:8080"
+    restart: always
+    depends_on:
+      - worms-db
+    ports:
+      - "8002:8002"
+    networks:
+      - shared_services
+
   taxamatch:
     build:
       context: ../
