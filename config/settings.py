@@ -25,6 +25,9 @@ DEBUG = os.environ.get("DJANGO_DEBUG", "1") == "1"
 allowed_hosts = os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
 ALLOWED_HOSTS = [h.strip() for h in allowed_hosts if h.strip()]
 
+path_prefix = os.environ.get("DJANGO_PATH_PREFIX", "").strip().strip("/")
+FORCE_SCRIPT_NAME = f"/{path_prefix}" if path_prefix else None
+
 INGEST_API_TOKEN = os.environ.get("INGEST_API_TOKEN", "mysecrettoken")
 # Application definition
 
@@ -56,6 +59,7 @@ SPECTACULAR_SETTINGS = {
     "SWAGGER_UI_DIST": "SIDECAR",
     "SWAGGER_UI_FAVICON_HREF": "SIDECAR",
     "REDOC_DIST": "SIDECAR",
+    "SERVERS": [{"url": FORCE_SCRIPT_NAME or "/"}],
     "TAGS": [
         {"name": "Taxa", "description": "Endpoints for managing taxon data"},
         {"name": "Vernaculars", "description": "Endpoints for managing vernacular data"},
@@ -160,9 +164,6 @@ USE_TZ = True
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
-
-path_prefix = os.environ.get("DJANGO_PATH_PREFIX", "").strip().strip("/")
-FORCE_SCRIPT_NAME = f"/{path_prefix}" if path_prefix else None
 
 STATIC_URL = f"{FORCE_SCRIPT_NAME}/static/" if FORCE_SCRIPT_NAME else "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
