@@ -1,48 +1,54 @@
 # Default values for worms-cache-api.
-# This is a YAML-formatted file.
-# Declare variables to be passed into your templates.
 
-# This will set the replicaset count more information can be found here: https://kubernetes.io/docs/concepts/workloads/controllers/replicaset
+# bodc-nginx ingress configuration.
+ingress:
+  enabled: false
 
-containerSecurityContext:
-  allowPrivilegeEscalation: false
-  capabilities:
-    drop:
-      - ALL
+# WORMS Cache API Django configuration.
+# ====================================
 
-podSecurityContext:
-  runAsNonRoot: true
-  seccompProfile:
-    type: RuntimeDefault
-
+# api-deployment configuration.
 api:
-  componentName: "worms-cache-api"
+  workers: 1
+  image:
+    repository: ghcr.io/paidiver/worms-cache
+    tag: latest
+    imagePullSecret: worms-cache-api-ghcr-pull-secret
+    pullPolicy: Always
+  env:
+    djangoCorsAllowedOrigins: "https://paidiver.github.io"
+    djangoCorsAllowAll: "0"
+    djangoSecretKey:
+      secretName: worms-cache-api-django-secret
+    ingestApiToken:
+      secretName: worms-cache-api-django-secret
+  resources:
+    requests:
+      cpu: "20m"
+      memory: "64Mi"
+    limits:
+      cpu: "100m"
+      memory: "128Mi"
+
+# api-migrate-job configuration.
+migrateJob:
+  enabled: true
   image:
     repository: ghcr.io/paidiver/worms-cache
     tag: latest
     pullPolicy: Always
-  port: 8000
-  timeout: 300
-  workers: 1
-  service:
-    port: 8000
-  env:
-    djangoSecretKey:
-      secretName: ""
-      secretKey: django-secret-key
-    ingestApiToken:
-      secretName: ""
-      secretKey: ingest-api-token
-    djangoDebug: "1"
-  securityContext:
-    runAsUser: 1000
-  initContainer:
-    securityContext:
-      runAsUser: 1000
+    imagePullSecret: worms-cache-api-ghcr-pull-secret
 
-ingress:
+# refresh-cron configuration.
+refreshCron:
   enabled: true
-  api:
-    path: ""
-    pathType: Prefix
-  ingressClassName: nginx
+
+# taxamatch-deployment configuration.
+taxamatch:
+  resources:
+    requests:
+      cpu: "20m"
+      memory: "64Mi"
+    limits:
+      cpu: "100m"
+      memory: "128Mi"

@@ -1,16 +1,20 @@
-global:
-  defaultStorageClass: "scale-nocacuk-bodc2"
-
 postgresql:
   primary:
+    persistence:
+      enabled: true
+      size: 2Gi
+      mountPath: /var/lib/postgresql/data
+    resources:
+      requests:
+        cpu: 10m
+        memory: 64Mi
+      limits:
+        cpu: 50m
+        memory: 128Mi
+      accessModes:
+        - ReadWriteOnce
     podSecurityContext:
       enabled: true
       fsGroup: 65534
     containerSecurityContext:
       runAsUser: 65534
-      runAsGroup: 65534
-    persistence:
-      enabled: true
-    resources:
-      limits:
-        memory: 256Mi
