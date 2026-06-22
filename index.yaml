@@ -16,6 +16,20 @@ entries:
     - https://github.com/paidiver/worms-cache/releases/download/api-0.1.8/api-0.1.8.tgz
     version: 0.1.8
   - apiVersion: v2
+    appVersion: 0.1.8-3
+    created: "2026-06-22T12:35:28.743056204Z"
+    description: A database and API for imagery metadata and worms-cache
+    digest: 149bd2b4f1fb435e6ddbc2b3664ce2153353f35d7360034a2ac7b81eb55f3436
+    maintainers:
+    - email: tobias.ferreira@noc.ac.uk
+      name: tobfer
+      url: bodc.ac.uk
+    name: api
+    type: application
+    urls:
+    - https://github.com/paidiver/worms-cache/releases/download/docker-v0.1.8-3/api-0.1.8-3.tgz
+    version: 0.1.8-3
+  - apiVersion: v2
     appVersion: 0.1.8-2
     created: "2026-06-22T12:15:10.564797054Z"
     description: A database and API for imagery metadata and worms-cache
@@ -165,4 +179,4 @@ entries:
     urls:
     - https://github.com/paidiver/worms-cache/releases/download/api-0.0.2-debug.20260615153824/api-0.0.2-debug.20260615153824.tgz
     version: 0.0.2-debug.20260615153824
-generated: "2026-06-22T12:15:10.56484133Z"
+generated: "2026-06-22T12:35:28.74311881Z"
