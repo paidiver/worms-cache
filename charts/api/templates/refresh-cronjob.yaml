@@ -34,6 +34,8 @@ spec:
                       key: {{ .Values.api.env.djangoSecretKey.secretKey }}
                 - name: DJANGO_DEBUG
                   value: {{ .Values.api.env.djangoDebug | quote }}
+                - name: DJANGO_PATH_PREFIX
+                  value: {{ default .Values.ingress.api.path .Values.api.env.djangoPathPrefix | quote }}
               command:
                 {{- toYaml .Values.refreshCron.args | nindent 16 }}
 

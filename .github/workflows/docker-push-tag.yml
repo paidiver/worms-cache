@@ -1,0 +1,73 @@
+name: Release Docker Image (Manual Tag)
+
+on:
+  push:
+    tags:
+      - 'docker-v*'
+
+env:
+  CI_REGISTRY_IMAGE: ghcr.io/${{ github.repository }}
+
+jobs:
+  release-docker-image:
+    permissions:
+      contents: write
+      packages: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name "$GITHUB_ACTOR"
+          git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
+
+      - name: Extract and validate version
+        id: version
+        run: |
+          TAG="${{ github.ref_name }}"
+          VERSION="${TAG#docker-v}"   # strips prefix
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-.*)?$ ]]; then
+            echo "Tag is not valid semver: $VERSION"
+            exit 1
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Build Docker Image
+        run: |
+          docker build -t $CI_REGISTRY_IMAGE:${{ github.sha }} -f docker/Dockerfile .
+
+      - name: Log in to GitHub Container Registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Push Docker Image
+        run: |
+          docker tag $CI_REGISTRY_IMAGE:${{ github.sha }} $CI_REGISTRY_IMAGE:${{ steps.version.outputs.version }}
+          docker push $CI_REGISTRY_IMAGE:${{ steps.version.outputs.version }}
+          docker push $CI_REGISTRY_IMAGE:${{ github.sha }}
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4.3.1
+
+      - name: add dependency repos
+        run: |
+          helm repo add bitnami https://charts.bitnami.com/bitnami
+
+      - name: Install yq
+        run: |
+          wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O yq &&\
+          chmod +x yq
+
+      - name: Update Chart.yaml version
+        run: |
+          yq -i '.version = "${{ steps.version.outputs.version }}"' charts/api/Chart.yaml
+          yq -i '.appVersion = "${{ steps.version.outputs.version }}"' charts/api/Chart.yaml
+
+      - name: Run chart-releaser
+        uses: helm/chart-releaser-action@v1.7.0
+        env:
+          CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+          CR_RELEASE_NAME_TEMPLATE: "docker-v{{ .Version }}"

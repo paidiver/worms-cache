@@ -54,6 +54,8 @@ spec:
                   key: {{ .Values.api.env.djangoSecretKey.secretKey }}
             - name: DJANGO_DEBUG
               value: "{{ .Values.api.env.djangoDebug }}"
+            - name: DJANGO_PATH_PREFIX
+              value: {{ default .Values.ingress.api.path .Values.api.env.djangoPathPrefix | quote }}
           command:
             - sh
             - -ec

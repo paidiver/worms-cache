@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     "corsheaders",
     "rest_framework",
     "drf_spectacular",
+    "drf_spectacular_sidecar",
     "api",
 ]
 
@@ -52,6 +53,9 @@ SPECTACULAR_SETTINGS = {
     "TITLE": "Worms Cache API",
     "DESCRIPTION": "API for managing cached data from the WoRMS API.",
     "VERSION": "0.1.0",
+    "SWAGGER_UI_DIST": "SIDECAR",
+    "SWAGGER_UI_FAVICON_HREF": "SIDECAR",
+    "REDOC_DIST": "SIDECAR",
     "TAGS": [
         {"name": "Taxa", "description": "Endpoints for managing taxon data"},
         {"name": "Vernaculars", "description": "Endpoints for managing vernacular data"},
@@ -65,6 +69,7 @@ SPECTACULAR_SETTINGS = {
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -156,7 +161,11 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
-STATIC_URL = "static/"
+path_prefix = os.environ.get("DJANGO_PATH_PREFIX", "").strip().strip("/")
+FORCE_SCRIPT_NAME = f"/{path_prefix}" if path_prefix else None
+
+STATIC_URL = f"{FORCE_SCRIPT_NAME}/static/" if FORCE_SCRIPT_NAME else "static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
 
 # Add a default logging configuration that logs to the console at INFO level for the "api" logger and above.
 LOGGING = {
