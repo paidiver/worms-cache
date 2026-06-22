@@ -28,6 +28,7 @@ api:
       secretName: my-app-secrets
       secretKey: django-secret-key
     djangoDebug: "1"
+    djangoPathPrefix: ""
     taxamatchUrl: ""
     djangoCorsAllowedOrigins: ""
     djangoCorsAllowAll: "1"

@@ -13,6 +13,7 @@ RUN pip install 'poetry~=1.8.0' && \
     poetry config virtualenvs.in-project false && \
     poetry config virtualenvs.create false && \
     poetry install --with lint,test --all-extras && \
+    python manage.py collectstatic --noinput && \
     apt-get update && apt-get install -y postgresql-client && \
     chown -R paidiver:paidiver /app
 

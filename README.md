@@ -100,6 +100,7 @@ POSTGRES_PORT=5432 # PostgreSQL port
 
 DJANGO_SECRET_KEY=dev-secret-key-change-me # Secret key for Django (change for production)
 DJANGO_DEBUG=1 # Enable debug mode (set to 0 for production)
+DJANGO_PATH_PREFIX="" # Optional path prefix for Django API (e.g., "/worms")
 DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,0.0.0.0 # Allowed hosts for Django
 DJANGO_CORS_ALLOWED_ORIGINS=http://localhost:3000,https://paidiver.github.io # Allowed origins for CORS
 DJANGO_CORS_ALLOW_ALL=1 # Allow all origins for CORS (set to 0 for production)
