@@ -1,2 +1,15 @@
-.tox/
-.venv/
+.git
+.venv
+.tox
+.env
+.env.*
+.python-version
+__pycache__
+*.pyc
+.pytest_cache
+.ruff_cache
+coverage_reports
+staticfiles
+dist
+build
+*.ctl

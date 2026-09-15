@@ -141,13 +141,15 @@ class IngestAphiaIdTests(TestCase):
         self.assertEqual(vern.count(), 2)
         self.assertEqual([(v.name, v.language_code) for v in vern], [("cod", "eng"), ("bacalhau", "por")])
         self.assertFalse(Vernacular.objects.filter(taxon=leaf, name="old").exists())
+        self.assertFalse(Vernacular.objects.filter(taxon=root).exists())
+        self.assertFalse(Vernacular.objects.filter(taxon=phylum).exists())
 
         self.assertTrue(any(t.aphia_id == leaf_id for t in leafs))
 
         client.record.assert_any_call(leaf_id)
         client.classification.assert_called_with(leaf_id)
         client.vernaculars.assert_called_with(leaf_id)
-        client.synonyms.assert_called()
+        client.synonyms.assert_called_once_with(leaf_id)
 
     @patch("api.services.ingest_aphia_id.WoRMSClient")
     def test_ingest_rank(self, MockClient: MagicMock):
@@ -157,6 +159,8 @@ class IngestAphiaIdTests(TestCase):
             MockClient: The mocked WoRMSClient class, injected by the @patch decorator.
         """
         client = MockClient.return_value
+
+        client.record.side_effect = lambda aid: RECORD_BY_ID.get(int(aid))
 
         client.classification.return_value = CLASSIFICATION_RETURN_VALUE
 
@@ -339,6 +343,10 @@ class IngestAphiaIdTests(TestCase):
         self.assertTrue(Taxon.objects.filter(aphia_id=ROOT_ID).exists())
         self.assertTrue(Taxon.objects.filter(aphia_id=PHYLUM_ID).exists())
         self.assertTrue(Taxon.objects.filter(aphia_id=LEAF_ID).exists())
+        self.assertEqual(Taxon.objects.get(aphia_id=PHYLUM_ID).parent_id, ROOT_ID)
+        self.assertEqual(Taxon.objects.get(aphia_id=LEAF_ID).parent_id, PHYLUM_ID)
+
+        self.assertEqual(client.record.call_count, 3)
 
     @patch("api.services.ingest_aphia_id.WoRMSClient")
     def test_vernacular_deduplication_hits_processed_branch(self, MockClient: MagicMock):
@@ -364,3 +372,44 @@ class IngestAphiaIdTests(TestCase):
 
         leaf = Taxon.objects.get(aphia_id=LEAF_ID)
         self.assertTrue(Vernacular.objects.filter(taxon=leaf).exists())
+        self.assertEqual(client.vernaculars.call_count, 2)
+
+    @patch("api.services.ingest_aphia_id.WoRMSClient")
+    def test_species_ingestion_preserves_ancestor_names(self, MockClient: MagicMock):
+        """Species names must not replace an ancestor's existing common names."""
+        client = MockClient.return_value
+        client.record.side_effect = lambda aid: RECORD_BY_ID.get(int(aid))
+        client.classification.return_value = CLASSIFICATION_RETURN_VALUE
+        client.vernaculars.return_value = VERNACULARS_RETURN_VALUE
+        client.synonyms.return_value = []
+        root = Taxon.objects.create(aphia_id=ROOT_ID, scientific_name="Animalia", status="accepted")
+        Vernacular.objects.create(taxon=root, name="animals", language_code="eng")
+
+        IngestAphiaId({LEAF_ID}).ingest_aphia_id(LEAF_ID)
+
+        self.assertEqual(list(Vernacular.objects.filter(taxon=root).values_list("name", flat=True)), ["animals"])
+        client.vernaculars.assert_called_once_with(LEAF_ID)
+        client.synonyms.assert_called_once_with(LEAF_ID)
+
+    @patch("api.services.ingest_aphia_id.WoRMSClient")
+    def test_each_requested_taxon_gets_its_own_names(self, MockClient: MagicMock):
+        """Ingesting a shared ancestor first must not give its names to the species."""
+        client = MockClient.return_value
+        client.record.side_effect = lambda aid: RECORD_BY_ID.get(int(aid))
+        client.classification.return_value = CLASSIFICATION_RETURN_VALUE
+        client.vernaculars.side_effect = lambda aid: [
+            {"vernacular": "chordates" if aid == PHYLUM_ID else "cod", "language_code": "eng"}
+        ]
+        client.synonyms.return_value = []
+
+        svc = IngestAphiaId({PHYLUM_ID, LEAF_ID})
+        svc.ingest(add_ranks=False)
+        svc.ingest_aphia_id(LEAF_ID)
+
+        self.assertEqual(
+            list(Vernacular.objects.filter(taxon_id=PHYLUM_ID).values_list("name", flat=True)), ["chordates"]
+        )
+        self.assertEqual(list(Vernacular.objects.filter(taxon_id=LEAF_ID).values_list("name", flat=True)), ["cod"])
+        self.assertFalse(Vernacular.objects.filter(taxon_id=ROOT_ID).exists())
+        self.assertEqual(client.vernaculars.call_count, 2)
+        self.assertEqual(client.synonyms.call_count, 2)

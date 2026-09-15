@@ -8,13 +8,14 @@ services:
     volumes:
       - worms_pg_data:/var/lib/postgresql
     ports:
-      - "5436:5432"
+      - "5460:5432"
     networks:
       - shared_services
   worms-cache:
     build:
       context: ../
       dockerfile: docker/Dockerfile
+      target: development
     env_file:
       - ../.env
     restart: always

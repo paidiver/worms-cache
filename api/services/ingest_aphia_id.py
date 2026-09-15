@@ -247,29 +247,27 @@ class IngestAphiaId:
         Args:
             aphia_id: The AphiaID for which to fetch vernacular names and synonyms
         """
-        vernaculars = self._vernaculars(aphia_id)
-        seen = set()
-        for leaf in self.leafs_dict.values():
-            if leaf.aphia_id in self._processed_vernaculars:
-                continue
-            self._processed_vernaculars.add(leaf.aphia_id)
-            Vernacular.objects.filter(taxon=leaf).delete()
-            logger.info("Processing vernaculars and synonyms for AphiaID=%d", leaf.aphia_id)
-            valid_target = leaf if leaf.status == "accepted" else (leaf.valid_taxon or leaf)
-            to_create = []
-            for vernacular in vernaculars:
-                name = (vernacular.get("vernacular") or "").strip()
-                lang = (vernacular.get("language_code") or "").strip()
-                if name and lang:
-                    to_create.append(Vernacular(taxon=leaf, name=name, language_code=lang))
-            if to_create:
-                Vernacular.objects.bulk_create(to_create)
+        if aphia_id in self._processed_vernaculars:
+            return
 
-            if valid_target.aphia_id in seen:
-                continue
-            seen.add(valid_target.aphia_id)
-            for synonym_record in self._synonyms(valid_target.aphia_id):
-                self._upsert_taxon_from_record(synonym_record)
+        # Classification ancestors belong in the tree, but the names returned
+        # by WoRMS belong only to the requested accepted taxon.
+        leaf = Taxon.objects.get(aphia_id=aphia_id)
+        vernaculars = self._vernaculars(aphia_id)
+        Vernacular.objects.filter(taxon=leaf).delete()
+        logger.info("Processing vernaculars and synonyms for AphiaID=%d", aphia_id)
+        to_create = []
+        for vernacular in vernaculars:
+            name = (vernacular.get("vernacular") or "").strip()
+            lang = (vernacular.get("language_code") or "").strip()
+            if name and lang:
+                to_create.append(Vernacular(taxon=leaf, name=name, language_code=lang))
+        if to_create:
+            Vernacular.objects.bulk_create(to_create)
+
+        for synonym_record in self._synonyms(aphia_id):
+            self._upsert_taxon_from_record(synonym_record)
+        self._processed_vernaculars.add(aphia_id)
 
     def _record(self, aphia_id: int) -> dict | None:
         """Fetch the AphiaRecord for a given AphiaID, using a cache to avoid redundant API calls.

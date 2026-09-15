@@ -28,8 +28,15 @@ These are the mapped endpoints from the WoRMS REST API:
 
 ## Requirements
 
+### Runtime
+
 * Docker
 * Docker Compose
+
+### Local development (without Docker)
+
+* Python 3.13
+* uv
 
 ## Architecture
 
@@ -45,8 +52,8 @@ These are the mapped endpoints from the WoRMS REST API:
 │   └── scripts/
 ├── taxamatch_service/  # Ruby microservice for fuzzy name matching
 ├── manage.py
-├── pyproject.toml      # Project metadata & dependencies (Poetry)
-├── poetry.lock         # Locked dependency versions
+├── pyproject.toml      # Project metadata & dependencies (uv)
+├── uv.lock         # Locked dependency versions
 ├── tox.ini             # Test, lint, and format automation
 ├── ruff.toml           # Ruff configuration
 ├── README.md
