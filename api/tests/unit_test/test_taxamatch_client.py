@@ -52,9 +52,7 @@ class TaxamatchClientTests(SimpleTestCase):
 
     @patch("api.services.taxamatch_client.settings")
     @patch("api.services.taxamatch_client.requests.post")
-    def test_match_batch_success_missing_results_returns_empty_list(
-        self, mock_post: MagicMock, mock_settings: MagicMock
-    ):
+    def test_match_batch_missing_results_raises_error(self, mock_post: MagicMock, mock_settings: MagicMock):
         """Test that match_batch() returns an empty list if the response from the Taxamatch service is successful.
 
         But missing the 'results' key.
@@ -70,8 +68,8 @@ class TaxamatchClientTests(SimpleTestCase):
         resp.json.return_value = {"something_else": []}
         mock_post.return_value = resp
 
-        out = match_batch([{"q": "x", "candidates": []}])
-        self.assertEqual(out, [])
+        with self.assertRaises(TaxamatchError):
+            match_batch([{"q": "x", "candidates": []}])
 
     @patch("api.services.taxamatch_client.settings")
     @patch("api.services.taxamatch_client.requests.post")
@@ -109,7 +107,7 @@ class TaxamatchClientTests(SimpleTestCase):
 
         resp = MagicMock()
         resp.status_code = 200
-        resp.json.return_value = {"results": []}
+        resp.json.return_value = {"results": [{"matched_ids": []}]}
         mock_post.return_value = resp
 
         match_batch([{"q": "a", "candidates": []}])

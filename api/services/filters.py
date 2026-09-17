@@ -63,7 +63,7 @@ def candidate_name_rows(query_name: str, limit: int = 300, rank_names: set[str] 
         query_set = (
             query_set.annotate(sim=TrigramSimilarity("genus_norm", parsed.genus_norm))
             .filter(sim__gt=0.2)
-            .order_by("-sim")[:limit]
+            .order_by("-sim", "taxon_id", "id")[:limit]
         )
         rows = list(query_set)
         if rows:
@@ -72,7 +72,7 @@ def candidate_name_rows(query_name: str, limit: int = 300, rank_names: set[str] 
         query_set = (
             base.annotate(sim=TrigramSimilarity("canonical_norm", parsed.canonical_norm))
             .filter(sim__gt=0.2)
-            .order_by("-sim")[:limit]
+            .order_by("-sim", "taxon_id", "id")[:limit]
         )
         return list(query_set)
 
@@ -81,7 +81,7 @@ def candidate_name_rows(query_name: str, limit: int = 300, rank_names: set[str] 
             base.filter(genus_norm=parsed.genus_norm)
             .annotate(sim=TrigramSimilarity("canonical_norm", parsed.canonical_norm))
             .filter(sim__gt=0.2)
-            .order_by("-sim")[:limit]
+            .order_by("-sim", "taxon_id", "id")[:limit]
         )
         rows = list(query_set)
         if rows:
@@ -92,7 +92,7 @@ def candidate_name_rows(query_name: str, limit: int = 300, rank_names: set[str] 
             base.filter(genus_prefix3=parsed.genus_prefix3)
             .annotate(sim=TrigramSimilarity("canonical_norm", parsed.canonical_norm))
             .filter(sim__gt=0.2)
-            .order_by("-sim")[:limit]
+            .order_by("-sim", "taxon_id", "id")[:limit]
         )
         rows = list(query_set)
         if rows:
@@ -101,6 +101,6 @@ def candidate_name_rows(query_name: str, limit: int = 300, rank_names: set[str] 
     query_set = (
         base.annotate(sim=TrigramSimilarity("canonical_norm", parsed.canonical_norm))
         .filter(sim__gt=0.2)
-        .order_by("-sim")[:limit]
+        .order_by("-sim", "taxon_id", "id")[:limit]
     )
     return list(query_set)

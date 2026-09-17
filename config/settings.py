@@ -50,6 +50,7 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    "EXCEPTION_HANDLER": "api.responses.exception_handler",
 }
 
 SPECTACULAR_SETTINGS = {
@@ -71,6 +72,7 @@ SPECTACULAR_SETTINGS = {
 
 
 MIDDLEWARE = [
+    "api.responses.ProblemDetailsMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
@@ -81,6 +83,8 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
+
+CORS_EXPOSE_HEADERS = ["Link"]
 
 CORS_ALLOW_ALL_ORIGINS = os.environ.get("DJANGO_CORS_ALLOW_ALL", "0") == "1"
 cors_allowed_origins = os.environ.get(

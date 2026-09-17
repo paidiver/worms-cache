@@ -8,9 +8,14 @@ from django.utils.dateparse import parse_datetime
 from api.models import Taxon, Vernacular
 from api.models.rank import Rank
 
-from .worms_client import WoRMSClient
+from .rebuild_name_index import rebuild_name_index
+from .worms_client import WoRMSClient, WoRMSError
 
 logger = logging.getLogger(__name__)
+
+
+class TaxonNotFound(ValueError):
+    """The requested taxon is absent upstream."""
 
 
 class IngestAphiaId:
@@ -41,19 +46,26 @@ class IngestAphiaId:
         """
         if add_ranks:
             self.ingest_ranks()
+        failed_ids = []
         for aphia_id in sorted(self.aphia_ids):
             try:
                 self.ingest_aphia_id(aphia_id)
             except Exception as e:
                 logger.error("Error ingesting AphiaID=%d: %s", aphia_id, str(e))
+                failed_ids.append(aphia_id)
+        return failed_ids
 
-    @transaction.atomic
     def ingest_ranks(self):
         """Ingest rank information for all AphiaIDs in the set, skipping duplicates from the client."""
         ranks = self.client.ranks()
         if not ranks:
             raise ValueError("No rank information found")
 
+        self._persist_ranks(ranks)
+
+    @transaction.atomic
+    def _persist_ranks(self, ranks):
+        """Write fetched ranks in a short transaction."""
         logger.info("Fetched rank information")
 
         seen: set[tuple[int, str]] = set()
@@ -77,12 +89,52 @@ class IngestAphiaId:
             len(seen),
         )
 
-    @transaction.atomic
     def ingest_aphia_id(self, aphia_id: int) -> list[Taxon]:
+        """Fetch upstream data, then atomically persist taxa and their search index."""
+        self.leafs_dict = {}
+        self._taxon_cache = {}
+        self._processed_taxa = set()
+        self._processed_vernaculars = set()
+        record = self._record(aphia_id)
+        if not record:
+            raise TaxonNotFound(f"No AphiaRecord for AphiaID={aphia_id}")
+        accepted_id = int(record.get("valid_AphiaID") or aphia_id)
+        accepted_record = self._record(accepted_id)
+        if not accepted_record:
+            raise WoRMSError("WoRMS returned an unresolved accepted taxon.")
+        records = [record, accepted_record]
+        classification = self._classification(accepted_id)
+        if classification:
+            for node_id, _, _ in self._walk_classification_tree(classification):
+                node = self._record(node_id)
+                if not node:
+                    raise WoRMSError("WoRMS returned an incomplete classification.")
+                records.append(node)
+        self._vernaculars(accepted_id)
+        records.extend(self._synonyms(accepted_id))
+        valid_records = {}
+        for item in records:
+            valid_id = item.get("valid_AphiaID")
+            if valid_id and int(valid_id) != int(item["AphiaID"]):
+                valid_record = self._record(int(valid_id))
+                if not valid_record:
+                    raise WoRMSError("WoRMS returned an unresolved accepted taxon.")
+                valid_records[int(valid_id)] = valid_record
+        try:
+            return self._persist_aphia_id(aphia_id, valid_records)
+        finally:
+            # Never retain model objects or processed flags after a rollback.
+            self._taxon_cache = {}
+            self._processed_taxa = set()
+            self._processed_vernaculars = set()
+
+    @transaction.atomic
+    def _persist_aphia_id(self, aphia_id: int, valid_records: dict) -> list[Taxon]:
         """Ingest an AphiaID and its related data from WoRMS into the local cache DB.
 
         Args:
             aphia_id: The AphiaID to ingest
+            valid_records: Previously fetched authoritative accepted-taxon records.
 
         Returns:
             A list of Taxon instances corresponding to the ingested AphiaID and its related data, after
@@ -92,7 +144,7 @@ class IngestAphiaId:
         self.leafs_dict = {}
         record = self._record(aphia_id)
         if not record:
-            raise ValueError(f"No AphiaRecord for AphiaID={aphia_id}")
+            raise TaxonNotFound(f"No AphiaRecord for AphiaID={aphia_id}")
         logger.info("Fetched record for AphiaID=%d", aphia_id)
         leaf = self._upsert_taxon_from_record(record)
         self._add_leaf(leaf)
@@ -103,6 +155,9 @@ class IngestAphiaId:
         self._handle_classification_info(aphia_id)
         self._handle_vernaculars_and_synonyms(aphia_id)
 
+        for record in valid_records.values():
+            self._add_leaf(self._upsert_taxon_from_record(record))
+        rebuild_name_index(aphia_ids=list(self._taxon_cache))
         logger.info("Completed ingestion for AphiaID=%d", aphia_id)
         return list(self.leafs_dict.values())
 
@@ -133,7 +188,7 @@ class IngestAphiaId:
         status = record.get("status") or ""
         valid_taxon = None
         if valid_id and int(valid_id) != aphia_id:
-            valid_taxon, _ = Taxon.objects.update_or_create(
+            valid_taxon, _ = Taxon.objects.get_or_create(
                 aphia_id=int(valid_id),
                 defaults={
                     "scientific_name": record.get("valid_name") or "",
@@ -183,7 +238,12 @@ class IngestAphiaId:
         """
         chain = []
         current = tree
+        seen = set()
         while current is not None:
+            node_id = int(current["AphiaID"])
+            if node_id in seen:
+                raise WoRMSError("WoRMS returned a cyclic classification.")
+            seen.add(node_id)
             chain.append((int(current["AphiaID"]), current.get("rank") or "", current.get("scientificname") or ""))
             current = current.get("child")
         return chain
@@ -200,7 +260,7 @@ class IngestAphiaId:
         the AphiaID of the valid taxon (or original AphiaID if accepted)
         """
         leaf = None
-        if record["status"] == "unaccepted":
+        if record.get("valid_AphiaID") and int(record["valid_AphiaID"]) != aphia_id:
             logger.info(
                 "AphiaID=%d is unaccepted, also ingesting valid taxon AphiaID=%s", aphia_id, record.get("valid_AphiaID")
             )
@@ -227,7 +287,8 @@ class IngestAphiaId:
             prev_taxon = None
             for node_id, _, _ in chain:
                 if node_id in self._processed_taxa:
-                    prev_taxon = self.leafs_dict.get(node_id, prev_taxon)
+                    prev_taxon = self._taxon_cache[node_id]
+                    self._add_leaf(prev_taxon)
                     continue
                 logger.info("Processing classification node AphiaID=%d for root AphiaID=%d", node_id, aphia_id)
                 record = self._record(node_id)
@@ -247,29 +308,27 @@ class IngestAphiaId:
         Args:
             aphia_id: The AphiaID for which to fetch vernacular names and synonyms
         """
-        vernaculars = self._vernaculars(aphia_id)
-        seen = set()
-        for leaf in self.leafs_dict.values():
-            if leaf.aphia_id in self._processed_vernaculars:
-                continue
-            self._processed_vernaculars.add(leaf.aphia_id)
-            Vernacular.objects.filter(taxon=leaf).delete()
-            logger.info("Processing vernaculars and synonyms for AphiaID=%d", leaf.aphia_id)
-            valid_target = leaf if leaf.status == "accepted" else (leaf.valid_taxon or leaf)
-            to_create = []
-            for vernacular in vernaculars:
-                name = (vernacular.get("vernacular") or "").strip()
-                lang = (vernacular.get("language_code") or "").strip()
-                if name and lang:
-                    to_create.append(Vernacular(taxon=leaf, name=name, language_code=lang))
-            if to_create:
-                Vernacular.objects.bulk_create(to_create)
+        if aphia_id in self._processed_vernaculars:
+            return
 
-            if valid_target.aphia_id in seen:
-                continue
-            seen.add(valid_target.aphia_id)
-            for synonym_record in self._synonyms(valid_target.aphia_id):
-                self._upsert_taxon_from_record(synonym_record)
+        # Classification ancestors belong in the tree, but the names returned
+        # by WoRMS belong only to the requested accepted taxon.
+        leaf = Taxon.objects.get(aphia_id=aphia_id)
+        vernaculars = self._vernaculars(aphia_id)
+        Vernacular.objects.filter(taxon=leaf).delete()
+        logger.info("Processing vernaculars and synonyms for AphiaID=%d", aphia_id)
+        to_create = []
+        for vernacular in vernaculars:
+            name = (vernacular.get("vernacular") or "").strip()
+            lang = (vernacular.get("language_code") or "").strip()
+            if name and lang:
+                to_create.append(Vernacular(taxon=leaf, name=name, language_code=lang))
+        if to_create:
+            Vernacular.objects.bulk_create(to_create)
+
+        for synonym_record in self._synonyms(aphia_id):
+            self._add_leaf(self._upsert_taxon_from_record(synonym_record))
+        self._processed_vernaculars.add(aphia_id)
 
     def _record(self, aphia_id: int) -> dict | None:
         """Fetch the AphiaRecord for a given AphiaID, using a cache to avoid redundant API calls.

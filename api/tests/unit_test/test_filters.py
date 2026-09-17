@@ -202,7 +202,7 @@ class FiltersTests(TestCase):
 
         mock_trigram.assert_any_call("genus_norm", "gadus")
         base.filter.assert_any_call(sim__gt=0.2)
-        base.order_by.assert_called_with("-sim")
+        base.order_by.assert_called_with("-sim", "taxon_id", "id")
 
     @patch("api.services.filters.TrigramSimilarity")
     @patch("api.services.filters.NameIndex")
@@ -285,7 +285,7 @@ class FiltersTests(TestCase):
         base.filter.assert_called_with(genus_norm="gadus")
         mock_trigram.assert_any_call("canonical_norm", "gadus morhua")
         qs.filter.assert_any_call(sim__gt=0.2)
-        qs.order_by.assert_called_with("-sim")
+        qs.order_by.assert_called_with("-sim", "taxon_id", "id")
 
     @patch("api.services.filters.TrigramSimilarity")
     @patch("api.services.filters.NameIndex")
@@ -372,5 +372,5 @@ class FiltersTests(TestCase):
         base.select_related.assert_called_with("taxon")
         mock_trigram.assert_any_call("canonical_norm", "unknown taxon")
         qs.filter.assert_any_call(sim__gt=0.2)
-        qs.order_by.assert_called_with("-sim")
+        qs.order_by.assert_called_with("-sim", "taxon_id", "id")
         qs.__getitem__.assert_called()

@@ -37,15 +37,28 @@ class Taxon(DefaultColumns):
     @property
     def descendants(self) -> list["Taxon"]:
         """Get all descendant taxa recursively in traversal order."""
-        descendants = []
-
-        def _get_descendants(taxon):
-            children = list(taxon.children.all().order_by("scientific_name"))
+        children_by_parent = {}
+        seen = {self.aphia_id}
+        frontier = [self.aphia_id]
+        while frontier:
+            children = list(
+                Taxon.objects.filter(parent_id__in=frontier)
+                .select_related("parent", "valid_taxon")
+                .order_by("scientific_name", "aphia_id")
+            )
+            frontier = []
             for child in children:
-                descendants.append(child)
-                _get_descendants(child)
-
-        _get_descendants(self)
+                if child.aphia_id in seen:
+                    continue
+                seen.add(child.aphia_id)
+                children_by_parent.setdefault(child.parent_id, []).append(child)
+                frontier.append(child.aphia_id)
+        descendants = []
+        stack = list(reversed(children_by_parent.get(self.aphia_id, [])))
+        while stack:
+            child = stack.pop()
+            descendants.append(child)
+            stack.extend(reversed(children_by_parent.get(child.aphia_id, [])))
         return descendants
 
     @property
@@ -53,7 +66,9 @@ class Taxon(DefaultColumns):
         """Get all parent taxa from root to immediate parent."""
         parents = []
         current_taxon = self.parent
-        while current_taxon:
+        seen = {self.aphia_id}
+        while current_taxon and current_taxon.aphia_id not in seen:
+            seen.add(current_taxon.aphia_id)
             parents.append(current_taxon)
             current_taxon = current_taxon.parent
         return parents[::-1]

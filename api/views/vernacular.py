@@ -2,7 +2,7 @@
 
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
-from rest_framework import viewsets
+from rest_framework import serializers, viewsets
 from rest_framework.exceptions import ValidationError
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -84,7 +84,10 @@ class VernacularViewSet(viewsets.ReadOnlyModelViewSet):
         """
         aphia_id = self._parse_aphia_id()
 
-        follow_valid = request.query_params.get("follow_valid", "true").strip().lower() not in {"0", "false", "no"}
+        try:
+            follow_valid = serializers.BooleanField().run_validation(request.query_params.get("follow_valid", "true"))
+        except ValidationError as exc:
+            raise ValidationError({"follow_valid": exc.detail}) from exc
         if follow_valid:
             aphia_id = self._resolve_valid_aphia_id(aphia_id)
 

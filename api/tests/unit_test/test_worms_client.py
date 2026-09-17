@@ -8,7 +8,7 @@ from requests.exceptions import HTTPError
 from requests.sessions import HTTPAdapter
 from rest_framework import status
 
-from api.services.worms_client import WoRMSClient
+from api.services.worms_client import WoRMSClient, WoRMSError
 
 
 class WoRMSClientTests(SimpleTestCase):
@@ -89,7 +89,7 @@ class WoRMSClientTests(SimpleTestCase):
 
         cm, session = self._mock_session_cm(response)
 
-        with patch.object(WoRMSClient, "_session", return_value=cm), self.assertRaises(HTTPError):
+        with patch.object(WoRMSClient, "_session", return_value=cm), self.assertRaises(WoRMSError):
             client._get("/AphiaRecordByAphiaID/10")
 
         session.get.assert_called_once()
@@ -159,7 +159,9 @@ class WoRMSClientTests(SimpleTestCase):
         """Test that records_by_date() builds the correct API path and returns the expected result."""
         client = WoRMSClient(base_url="https://worms.example")
         with patch.object(WoRMSClient, "_get", return_value=[{"AphiaID": 10}]) as mock_get:
-            out = client.records_by_date("2024-01-01")
+            out = client.records_by_date("2024-01-01", "2024-01-02")
 
         self.assertEqual(out, [{"AphiaID": 10}])
-        mock_get.assert_called_once_with("/AphiaRecordsByDate?startdate=2024-01-01")
+        mock_get.assert_called_once_with(
+            "/AphiaRecordsByDate?startdate=2024-01-01&enddate=2024-01-02&marine_only=false&extant_only=false&offset=1"
+        )

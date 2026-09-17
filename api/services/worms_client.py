@@ -1,6 +1,8 @@
 """WoRMS API client for fetching taxonomic data from the World Register of Marine Species (WoRMS)."""
 
 from dataclasses import dataclass
+from datetime import UTC, datetime
+from urllib.parse import urlencode
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -8,6 +10,16 @@ from rest_framework import status
 from urllib3.util.retry import Retry
 
 from config import settings
+
+CHANGE_PAGE_SIZE = 50
+
+
+class WoRMSError(RuntimeError):
+    """An unavailable or malformed upstream response, safe to expose to clients."""
+
+    def __init__(self, message="WoRMS service is unavailable.", status_code=502):
+        super().__init__(message)
+        self.status_code = status_code
 
 
 @dataclass(frozen=True)
@@ -46,12 +58,19 @@ class WoRMSClient:
             The JSON response from the API as a dictionary or list of dictionaries, or None if no content.
         """
         url = f"{self.base_url}{path}"
-        with self._session() as session:
-            response = session.get(url, timeout=20)
-            if response.status_code == status.HTTP_204_NO_CONTENT:
-                return None
-            response.raise_for_status()
-            return response.json()
+        try:
+            with self._session() as session:
+                response = session.get(url, timeout=20)
+                if response.status_code == status.HTTP_204_NO_CONTENT:
+                    return None
+                response.raise_for_status()
+                return response.json()
+        except requests.Timeout as exc:
+            raise WoRMSError("WoRMS service did not respond in time.", status_code=504) from exc
+        except requests.RequestException as exc:
+            raise WoRMSError() from exc
+        except ValueError as exc:
+            raise WoRMSError("WoRMS service returned invalid JSON.") from exc
 
     def record(self, aphia_id: int) -> dict | None:
         """Fetch the AphiaRecord for a given AphiaID.
@@ -105,13 +124,29 @@ class WoRMSClient:
         """
         return self._get(f"/AphiaSynonymsByAphiaID/{aphia_id}") or []
 
-    def records_by_date(self, start_date: str) -> list[dict]:
-        """Fetch the records modified on a given date.
-
-        Args:
-            start_date: The date (in YYYY-MM-DD format) for which to fetch modified records.
-
-        Returns:
-            A list of dictionaries representing the records modified on the given date.
-        """
-        return self._get(f"/AphiaRecordsByDate?startdate={start_date}") or []
+    def records_by_date(self, start_date: str, end_date: str | None = None) -> list[dict]:
+        """Fetch every change page in a fixed window, including nonmarine and extinct taxa."""
+        end_date = end_date or datetime.now(UTC).isoformat()
+        records = []
+        offset = 1
+        previous_page = None
+        while True:
+            query = urlencode(
+                {
+                    "startdate": start_date,
+                    "enddate": end_date,
+                    "marine_only": "false",
+                    "extant_only": "false",
+                    "offset": offset,
+                }
+            )
+            page = self._get(f"/AphiaRecordsByDate?{query}") or []
+            if not isinstance(page, list) or any(not isinstance(item, dict) or "AphiaID" not in item for item in page):
+                raise WoRMSError("WoRMS service returned an invalid change page.")
+            if page and page == previous_page:
+                raise WoRMSError("WoRMS service repeated a change page.")
+            records.extend(page)
+            if len(page) < CHANGE_PAGE_SIZE:
+                return records
+            offset += len(page)
+            previous_page = page

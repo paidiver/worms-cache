@@ -14,15 +14,15 @@ from rest_framework.response import Response
 
 from api.models import Taxon
 from api.models.vernacular import Vernacular
+from api.serializers.query import validate_query
 from api.serializers.taxon import (
     ClassificationNodeSerializer,
     IngestAphiaIdSerializer,
     TaxonWormsLikeSerializer,
 )
 from api.services.filters import candidate_name_rows, rank_names_for_range
-from api.services.ingest_aphia_id import IngestAphiaId
-from api.services.rebuild_name_index import rebuild_name_index
-from api.services.taxamatch_client import TaxamatchError, match_batch
+from api.services.ingest_aphia_id import IngestAphiaId, TaxonNotFound
+from api.services.taxamatch_client import match_batch
 from api.services.token_auth import TokenAuth
 
 TAXAMATCH_LIMIT = 50
@@ -62,6 +62,11 @@ class TaxonViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = TaxonWormsLikeSerializer
     lookup_field = "aphia_id"
 
+    def initial(self, request, *args, **kwargs):
+        """Reject malformed query parameters before executing any lookup."""
+        super().initial(request, *args, **kwargs)
+        self.query = validate_query(request.query_params)
+
     def get_serializer_class(self):
         """Return the appropriate serializer class based on the action."""
         if self.action == "retrieve":
@@ -70,6 +75,10 @@ class TaxonViewSet(viewsets.ReadOnlyModelViewSet):
 
     @extend_schema(
         parameters=[
+            OpenApiParameter(name="offset", type=int, description="One-based starting record; default 1. Browse only."),
+            OpenApiParameter(
+                name="limit", type=int, description="Browse page size, 1–50; default 50. Links in Link header."
+            ),
             OpenApiParameter(
                 name="scientific_name",
                 type=str,
@@ -99,12 +108,26 @@ class TaxonViewSet(viewsets.ReadOnlyModelViewSet):
             qs = (
                 Taxon.objects.filter(aphia_id__in=aphia_ids)
                 .select_related("parent", "valid_taxon")
-                .order_by("scientific_name")
+                .order_by("scientific_name", "aphia_id")
             )
             serializer = self.get_serializer(qs, many=True)
             return Response(serializer.data)
 
-        return super().list(request, *args, **kwargs)
+        offset, limit = self.query["offset"], self.query["limit"]
+        taxa = list(self.get_queryset()[offset - 1 : offset + limit])
+        response = Response(self.get_serializer(taxa[:limit], many=True).data)
+        links = []
+        for relation, position in (
+            ("next", offset + limit if len(taxa) > limit else None),
+            ("previous", max(1, offset - limit) if offset > 1 else None),
+        ):
+            if position is not None:
+                params = request.query_params.copy()
+                params["offset"] = position
+                links.append(f'<{request.build_absolute_uri(request.path)}?{params.urlencode()}>; rel="{relation}"')
+        if links:
+            response["Link"] = ", ".join(links)
+        return response
 
     @extend_schema(
         parameters=[
@@ -114,7 +137,7 @@ class TaxonViewSet(viewsets.ReadOnlyModelViewSet):
                 location=OpenApiParameter.QUERY,
                 many=True,
                 required=True,
-                description="List of AphiaIDs whose direct children should be included.",
+                description="List of AphiaIDs whose cached descendants should be included.",
             ),
             OpenApiParameter(
                 name="id_only",
@@ -146,12 +169,12 @@ class TaxonViewSet(viewsets.ReadOnlyModelViewSet):
                 {"detail": "aphia_ids[] must contain at least one integer."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        id_only = request.query_params.get("id_only", "true").lower() in ("1", "true", "yes")
+        id_only = self.query["id_only"]
 
         taxa = list(
             Taxon.objects.filter(aphia_id__in=aphia_ids)
             .select_related("parent", "valid_taxon")
-            .order_by("scientific_name")
+            .order_by("scientific_name", "aphia_id")
         )
 
         combined_taxa = []
@@ -174,14 +197,7 @@ class TaxonViewSet(viewsets.ReadOnlyModelViewSet):
 
     def _get_aphia_ids_from_query(self, request: Request) -> builtins.list[int]:
         """Extract and validate a list of AphiaIDs from the query parameters."""
-        raw_ids = request.query_params.getlist("aphia_ids[]")
-        aphia_ids = []
-        for value in raw_ids:
-            try:
-                aphia_ids.append(int(value))
-            except (TypeError, ValueError):
-                continue
-        return aphia_ids
+        return validate_query(request.query_params).get("aphia_ids", [])
 
     @extend_schema(
         parameters=[
@@ -235,9 +251,9 @@ class TaxonViewSet(viewsets.ReadOnlyModelViewSet):
             A Response object containing the retrieved taxon data, and optionally its parents and descendants,
         serialized in a WoRMS-like format. If the taxon is not found, a 404 Not Found response is returned.
         """
-        only_valid = request.query_params.get("only_valid", "false").lower() in ("1", "true", "yes")
-        include_descendants = request.query_params.get("include_descendants", "false").lower() in ("1", "true", "yes")
-        include_parents = request.query_params.get("include_parents", "false").lower() in ("1", "true", "yes")
+        only_valid = self.query["only_valid"]
+        include_descendants = self.query["include_descendants"]
+        include_parents = self.query["include_parents"]
 
         taxon = self.get_object(only_valid=only_valid)
 
@@ -358,7 +374,7 @@ class TaxonViewSet(viewsets.ReadOnlyModelViewSet):
         if not resolved:
             return Response(status=status.HTTP_204_NO_CONTENT)
 
-        id_only = request.query_params.get("id_only", "true").lower() in ("1", "true", "yes")
+        id_only = self.query["id_only"]
         if id_only:
             return Response([taxon.aphia_id for taxon in resolved])
 
@@ -415,10 +431,10 @@ class TaxonViewSet(viewsets.ReadOnlyModelViewSet):
         Returns:
             A Response object containing a list of results for each matched taxa (up to max_results).
         """
-        names = request.query_params.getlist("scientificnames[]")
-        max_results = int(request.query_params.get("max_results", 3))
-        if len(names) > TAXAMATCH_LIMIT:
-            raise ValidationError({"names": f"Maximum {TAXAMATCH_LIMIT} names per call."})
+        names = self.query.get("scientificnames")
+        if not names:
+            raise ValidationError({"scientificnames[]": "At least one scientific name is required."})
+        max_results = self.query["max_results"]
 
         per_input = []
         for raw in names:
@@ -442,10 +458,7 @@ class TaxonViewSet(viewsets.ReadOnlyModelViewSet):
 
         matched_ids_by_input_idx: dict[int, set[int]] = {}
         if batch_queries:
-            try:
-                batch_results = match_batch(batch_queries, timeout=3.0)
-            except TaxamatchError:
-                batch_results = []
+            batch_results = match_batch(batch_queries, timeout=3.0)
 
             for j, br in enumerate(batch_results):
                 input_idx = batch_to_input_idx[j]
@@ -460,7 +473,8 @@ class TaxonViewSet(viewsets.ReadOnlyModelViewSet):
     @extend_schema(
         request=IngestAphiaIdSerializer,
         responses={
-            202: TaxonWormsLikeSerializer(many=True),
+            200: TaxonWormsLikeSerializer(many=True),
+            201: TaxonWormsLikeSerializer(many=True),
         },
         description="Ingest an AphiaID and its related data from WoRMS into the local cache. Requires authentication.",
     )
@@ -478,7 +492,7 @@ class TaxonViewSet(viewsets.ReadOnlyModelViewSet):
             request: The HTTP request object, expected to contain a JSON body with an "aphia_id" key (integer).
 
         Returns:
-            A 202 Accepted Response containing the list of ingested Taxon records serialized in WoRMS-like format,
+            A 201 Created Response containing the list of ingested Taxon records serialized in WoRMS-like format,
         or a 400 Bad Request if the input is invalid, or a 401 Unauthorized if not authenticated, or a 200 OK if the
         AphiaID is already in the database.
         """
@@ -491,11 +505,9 @@ class TaxonViewSet(viewsets.ReadOnlyModelViewSet):
         ingester = IngestAphiaId(aphia_ids={aphia_id})
         try:
             ingested_taxa = ingester.ingest_aphia_id(aphia_id)
-            aphia_ids = [taxon.aphia_id for taxon in ingested_taxa]
-            rebuild_name_index(aphia_ids=aphia_ids)
-        except Exception as e:
-            raise ValidationError({"detail": f"Error ingesting AphiaID={aphia_id}: {str(e)}"}) from e
-        return Response(TaxonWormsLikeSerializer(ingested_taxa, many=True).data, status=status.HTTP_202_ACCEPTED)
+        except TaxonNotFound as exc:
+            raise NotFound("The AphiaID does not exist in WoRMS.") from exc
+        return Response(TaxonWormsLikeSerializer(ingested_taxa, many=True).data, status=status.HTTP_201_CREATED)
 
     @extend_schema(
         parameters=[
@@ -535,8 +547,11 @@ class TaxonViewSet(viewsets.ReadOnlyModelViewSet):
         Returns:
             A Response object true if the two names match the same taxon according to TaxaMatch, false otherwise.
         """
-        scientific_name1 = _handle_scientific_name_input(request.query_params.get("scientificname1", ""))
-        scientific_name2 = _handle_scientific_name_input(request.query_params.get("scientificname2", ""))
+        for field in ("scientificname1", "scientificname2"):
+            if not self.query.get(field):
+                raise ValidationError({field: "This parameter is required."})
+        scientific_name1 = _handle_scientific_name_input(self.query["scientificname1"])
+        scientific_name2 = _handle_scientific_name_input(self.query["scientificname2"])
 
         batch_queries = [{"input": scientific_name1, "candidates": [{"id": 1, "name": scientific_name2}]}]
         batch_results = match_batch(batch_queries, timeout=3.0)
@@ -560,7 +575,7 @@ class TaxonViewSet(viewsets.ReadOnlyModelViewSet):
         if rank:
             qs = qs.filter(rank__iexact=rank)
 
-        return qs.order_by("scientific_name")[:50]
+        return qs.order_by("scientific_name", "aphia_id")
 
     def get_object(self, only_valid: bool = False) -> Taxon:
         """Return the  taxon.
@@ -636,9 +651,11 @@ class TaxonViewSet(viewsets.ReadOnlyModelViewSet):
             rank_names,
         )
         vern_taxon_ids = _handle_vernacular_matches(name_part, rank_names, combine_vernaculars, languages, max_matches)
-        combined_ids = scientific_taxon_ids + vern_taxon_ids
-        combined_taxa = list(Taxon.objects.filter(aphia_id__in=combined_ids).select_related("parent", "valid_taxon"))
-        combined_taxa = _combine_taxa_list(combined_taxa, excluded, max_matches)
+        combined_ids = _dedupe_keep_order(scientific_taxon_ids + vern_taxon_ids)
+        taxa_by_id = Taxon.objects.select_related("parent", "valid_taxon").in_bulk(combined_ids)
+        combined_taxa = _combine_taxa_list(
+            [taxa_by_id[aphia_id] for aphia_id in combined_ids if aphia_id in taxa_by_id], excluded, max_matches
+        )
         if not combined_taxa:
             return []
 
@@ -666,26 +683,15 @@ class TaxonViewSet(viewsets.ReadOnlyModelViewSet):
             A tuple containing the parsed and validated parameters: max_matches, rank_min, rank_max,
         excluded_ids, combine_vernaculars, languages
         """
-        max_matches = int(request.query_params.get("max_matches", 20))
-        max_matches = min(max_matches, 50)
-
-        rank_min = int(request.query_params.get("rank_min", 0))
-        rank_max = int(request.query_params.get("rank_max", 0))
-
-        excluded = set()
-        for x in request.query_params.getlist("excluded_ids[]"):
-            try:
-                excluded.add(int(x))
-            except ValueError:
-                continue
-
-        combine_vernaculars = str(request.query_params.get("combine_vernaculars", "false")).lower() in (
-            "1",
-            "true",
-            "yes",
+        query = validate_query(request.query_params)
+        return (
+            query["max_matches"],
+            query["rank_min"],
+            query["rank_max"],
+            set(query["excluded_ids"]),
+            query["combine_vernaculars"],
+            [language.lower() for language in query["languages"]],
         )
-        languages = [x.strip().lower() for x in request.query_params.getlist("languages[]") if x.strip()]
-        return max_matches, rank_min, rank_max, excluded, combine_vernaculars, languages
 
     def _handle_taxamatch_names(
         self,
@@ -814,26 +820,23 @@ def _handle_scientific_name_input_and_candidates(
     if candidate_rows:
         normalized = _handle_scientific_name_input(name_part)
 
-        try:
-            batch_results = match_batch(
-                [
-                    {
-                        "input": normalized,
-                        "candidates": [{"id": r.id, "name": r.name_raw} for r in candidate_rows],
-                    }
-                ],
-                timeout=3.0,
+        batch_results = match_batch(
+            [
+                {
+                    "input": normalized,
+                    "candidates": [{"id": r.id, "name": r.name_raw} for r in candidate_rows],
+                }
+            ],
+            timeout=3.0,
+        )
+        matched_candidate_ids = set((batch_results[0] or {}).get("matched_ids") or [])
+        if matched_candidate_ids:
+            scientific_taxon_ids = _dedupe_keep_order(
+                [r.taxon_id for r in candidate_rows if r.id in matched_candidate_ids]
             )
-            matched_candidate_ids = set((batch_results[0] or {}).get("matched_ids") or [])
-            if matched_candidate_ids:
-                scientific_taxon_ids = _dedupe_keep_order(
-                    [r.taxon_id for r in candidate_rows if r.id in matched_candidate_ids]
-                )
-            else:
-                scientific_taxon_ids = _dedupe_keep_order([r.taxon_id for r in candidate_rows])
-
-        except TaxamatchError:
+        else:
             scientific_taxon_ids = _dedupe_keep_order([r.taxon_id for r in candidate_rows])
+
     return scientific_taxon_ids
 
 
@@ -870,7 +873,7 @@ def _handle_vernacular_matches(
         vern_taxon_ids = list(
             vernacular_query_set.annotate(sim=TrigramSimilarity("name", name_part))
             .filter(sim__gt=0.2)
-            .order_by("-sim")
+            .order_by("-sim", "taxon_id", "id")
             .values_list("taxon_id", flat=True)
             .distinct()[: max_matches * 2]
         )
@@ -899,9 +902,9 @@ def _combine_taxa_list(
         taxon_valid_id = taxon.valid_taxon_id if taxon.valid_taxon_id else taxon.aphia_id
         if taxon_id in excluded or taxon_valid_id in excluded:
             continue
-        if taxon_id in seen:
+        if taxon_valid_id in seen:
             continue
-        seen.add(taxon_id)
+        seen.add(taxon_valid_id)
         filtered_combined_taxa.append(taxon)
         if len(filtered_combined_taxa) >= max_matches:
             break
