@@ -79,4 +79,4 @@ class VernacularViewSetTests(APITestCase):
         """Test that the retrieve endpoint returns 400 Bad Request for an invalid AphiaID."""
         resp = self.client.get(self.detail_url("abc"))
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("aphia_id", resp.data)
+        self.assertEqual(resp.data["errors"][0]["field"], "aphia_id")

@@ -269,3 +269,5 @@ A collection of example API requests and responses is available in the [API Exam
 ## Acknowledgements
 
 This project was supported by the UK Natural Environment Research Council (NERC) through the *Tools for automating image analysis for biodiversity monitoring (AIAB)* Funding Opportunity, reference code **UKRI052**.
+
+See [API contract and operational changes](docs/API_CONTRACT.md) for validation, errors, pagination, refresh checkpoints, and readiness.

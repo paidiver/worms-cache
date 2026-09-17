@@ -323,10 +323,10 @@ class TaxonViewSetTests(APITestCase):
 
     @patch("api.views.taxon.candidate_name_rows")
     @patch("api.views.taxon.match_batch")
-    def test_match_names_returns_204_when_taxamatch_raises_error(
+    def test_match_names_returns_502_when_taxamatch_raises_error(
         self, mock_match_batch: MagicMock, mock_candidate_name_rows: MagicMock
     ):
-        """Match_names endpoint returns 204 when Taxamatch raises an error.
+        """Match_names endpoint returns 502 when Taxamatch raises an error.
 
         Args:
             mock_match_batch: The mocked match_batch function to control its behavior in the test.
@@ -336,7 +336,7 @@ class TaxonViewSetTests(APITestCase):
         mock_match_batch.side_effect = TaxamatchError("boom")
 
         resp = self.client.get(self.match_names_url(), {"scientificnames[]": ["gadus morhua"], "max_results": 3})
-        self.assertEqual(resp.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertEqual(resp.status_code, status.HTTP_502_BAD_GATEWAY)
 
     @patch("api.views.taxon.candidate_name_rows")
     @patch("api.views.taxon.match_batch")
@@ -360,7 +360,7 @@ class TaxonViewSetTests(APITestCase):
         too_many = ["a b"] * 51
         resp = self.client.get(self.match_names_url(), [("scientificnames[]", n) for n in too_many])
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn("names", resp.data)
+        self.assertEqual(resp.data["errors"][0]["field"], "scientificnames")
 
     def test_ajax_by_name_part_returns_204_on_blank_namepart(self):
         """Ajax_by_name_part endpoint returns 204 when the name part is blank.
@@ -491,14 +491,14 @@ class TaxonViewSetTests(APITestCase):
                 "max_matches": 20,
             },
         )
-        self.assertEqual(resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
 
     @patch("api.views.taxon.match_batch")
     def test_ajax_by_name_part_when_taxamatch_raises_error(
         self,
         mock_match_batch: MagicMock,
     ):
-        """match_names catches TaxamatchError and treats as no results."""
+        """Taxamatch failures produce an upstream error."""
         mock_match_batch.side_effect = TaxamatchError("boom")
         resp = self.client.get(
             self.ajax_by_name_part_url("gadus"),
@@ -509,7 +509,7 @@ class TaxonViewSetTests(APITestCase):
             },
         )
         resp = self.client.get(self.match_names_url(), {"scientificnames[]": ["gadus morhua"], "max_results": 3})
-        self.assertEqual(resp.status_code, status.HTTP_204_NO_CONTENT)
+        self.assertEqual(resp.status_code, status.HTTP_502_BAD_GATEWAY)
 
     @patch("api.views.taxon.match_batch")
     def test_ajax_by_name_part_uses_matched_candidate_ids_when_taxamatch_matches(self, mock_match_batch: MagicMock):
@@ -581,7 +581,7 @@ class TaxonViewSetTests(APITestCase):
         """Test that the function combines taxa lists while skipping duplicate taxon IDs."""
         taxa = [self.leaf, self.leaf, self.invalid]
         result = _combine_taxa_list(taxa, excluded=set(), max_matches=10)
-        self.assertEqual([t.aphia_id for t in result], [self.leaf.aphia_id, self.invalid.aphia_id])
+        self.assertEqual([t.aphia_id for t in result], [self.leaf.aphia_id])
 
     def test_list_taxa_filters_by_aphia_ids(self):
         """Test that the list endpoint returns only the taxa requested via aphia_ids[] and orders by scientific name."""
@@ -593,22 +593,17 @@ class TaxonViewSetTests(APITestCase):
         returned_ids = [item["AphiaID"] for item in resp.data]
         self.assertEqual(returned_ids, [self.root.aphia_id, self.leaf.aphia_id])
 
-    def test_list_taxa_ignores_invalid_aphia_ids_and_falls_back_to_default_list(self):
-        """Test that invalid aphia_ids[] values are ignored and the endpoint falls back to the normal list behavior."""
+    def test_list_taxa_rejects_invalid_aphia_ids(self):
+        """Invalid IDs must not broaden the query to unrelated taxa."""
         resp = self.client.get(self.list_url(), [("aphia_ids[]", "abc"), ("aphia_ids[]", "not-an-int")])
-        self.assertEqual(resp.status_code, status.HTTP_200_OK)
-
-        returned_ids = [item["AphiaID"] for item in resp.data]
-        self.assertIn(self.root.aphia_id, returned_ids)
-        self.assertIn(self.phylum.aphia_id, returned_ids)
-        self.assertIn(self.leaf.aphia_id, returned_ids)
-        self.assertIn(self.invalid.aphia_id, returned_ids)
+        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(resp.data["errors"][0]["field"], "aphia_ids.0")
 
     def test_ids_with_descendants_returns_400_without_valid_ids(self):
         """Test that ids_with_descendants returns 400 when no valid aphia_ids[] are provided."""
         resp = self.client.get(self.ids_with_descendants_url(), [("aphia_ids[]", "abc")])
         self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(resp.data["detail"], "aphia_ids[] must contain at least one integer.")
+        self.assertEqual(resp.data["code"], "invalid_parameters")
 
     def test_ids_with_descendants_returns_taxon_and_all_descendants(self):
         """Test that ids_with_descendants includes the requested taxon IDs and their descendants without duplicates."""

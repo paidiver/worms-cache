@@ -2,6 +2,7 @@
 
 from .name_index import NameIndex
 from .rank import Rank
+from .refresh_state import RefreshState
 from .taxon import Taxon
 from .vernacular import Vernacular
 
@@ -10,4 +11,5 @@ __all__ = [
     "Vernacular",
     "NameIndex",
     "Rank",
+    "RefreshState",
 ]

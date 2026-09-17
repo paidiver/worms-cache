@@ -32,8 +32,8 @@ class IngestAphiaIdViewTests(APITestCase):
         return reverse("taxa-ingest")
 
     @patch("api.views.taxon.IngestAphiaId")
-    def test_ingest_returns_202_when_authenticated_with_valid_token(self, mock_ingest_class: MagicMock):
-        """Test that POST to ingest endpoint with valid token returns 202 with ingested taxa.
+    def test_ingest_returns_201_when_authenticated_with_valid_token(self, mock_ingest_class: MagicMock):
+        """Test that POST to ingest endpoint with valid token returns 201 with ingested taxa.
 
         Args:
             mock_ingest_class: The mocked IngestAphiaId class to control its behavior in the test.
@@ -60,13 +60,13 @@ class IngestAphiaIdViewTests(APITestCase):
             HTTP_AUTHORIZATION="Bearer test-token",
         )
 
-        self.assertEqual(resp.status_code, status.HTTP_202_ACCEPTED)
+        self.assertEqual(resp.status_code, status.HTTP_201_CREATED)
         mock_ingest_class.assert_called_once_with(aphia_ids={12345})
         mock_instance.ingest_aphia_id.assert_called_once_with(12345)
 
     @patch("api.views.taxon.IngestAphiaId")
     def test_ingest_returns_error_when_aphiaid_is_wrong(self, mock_ingest_class: MagicMock):
-        """Test that POST to ingest endpoint with valid token returns 202 with ingested taxa.
+        """Test that POST to ingest endpoint with valid token returns 201 with ingested taxa.
 
         Args:
             mock_ingest_class: The mocked IngestAphiaId class to control its behavior in the test.
@@ -82,7 +82,7 @@ class IngestAphiaIdViewTests(APITestCase):
             HTTP_AUTHORIZATION="Bearer test-token",
         )
 
-        self.assertEqual(resp.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(resp.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
         mock_ingest_class.assert_called_once_with(aphia_ids={11111})
         mock_instance.ingest_aphia_id.assert_called_once_with(11111)
 

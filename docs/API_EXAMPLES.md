@@ -23,9 +23,12 @@ curl -X POST "$API_BASE/api/taxa/ingest/" \
 
 Behavior:
 
-* `202 Accepted` → AphiaID was newly ingested
+* `201 Created` → AphiaID was newly ingested
 * `200 OK` → AphiaID already exists in the local database
-* `400 Bad Request` → invalid input or ingestion failed
+* `400 Bad Request` → invalid input
+* `404 Not Found` → no upstream record
+* `502 Bad Gateway` / `504 Gateway Timeout` → upstream failure / timeout
+* `500 Internal Server Error` → unexpected failure
 * `401 Unauthorized` → missing or invalid token
 
 Response format:
@@ -61,7 +64,7 @@ Query params:
 
 Notes:
 * Results are ordered by `scientific_name`
-* General list responses are limited to 50 results
+* General list responses default to 50 results; use `offset`/`limit` and the `Link` header to browse further
 
 
 ### List AphiaIDs including descendants
