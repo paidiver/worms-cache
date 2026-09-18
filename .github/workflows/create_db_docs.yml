@@ -1,5 +1,10 @@
 name: SchemaSpy
 
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
 permissions:
   contents: write
 
@@ -7,95 +12,15 @@ concurrency:
   group: gh-pages
   cancel-in-progress: false
 
-on:
-  workflow_dispatch:
-  push:
-    branches: [main]
-
 jobs:
   generate:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Create .env file
-        run: |
-          echo POSTGRES_USER=myuser >> .env
-          echo POSTGRES_PASSWORD=mypassword >> .env
-          echo POSTGRES_DB=worms-cachedb >> .env
-          echo POSTGRES_HOST=worms-db >> .env
-          echo POSTGRES_PORT=5432 >> .env
-          echo POSTGRES_PORT_ALEMBIC=5432 >> .env
-          echo POSTGRES_HOST_ALEMBIC=worms-db >> .env
-
-      - name: Create shared_services network
-        run: docker network create shared_services || true
-
-      - name: Start PostgreSQL
-        run: |
-          docker compose -f docker/docker-compose.yml up -d worms-db
-
-      - name: Wait for PostgreSQL
-        run: |
-          for i in {1..60}; do
-            docker compose -f docker/docker-compose.yml exec -T worms-db \
-              pg_isready -U myuser -d worms-cachedb && exit 0
-
-            sleep 2
-          done
-
-          echo "PostgreSQL did not become ready"
-          exit 1
-
-      - name: Run Django migrations
-        run: |
-          docker compose -f docker/docker-compose.yml run --rm \
-            worms-cache \
-            python manage.py migrate
-
-      - name: Generate SchemaSpy docs
-        run: |
-          mkdir -p schemaspy-output
-          chmod -R a+rwx schemaspy-output
-
-          curl -L \
-            https://jdbc.postgresql.org/download/postgresql-42.5.4.jar \
-            -o jdbc-driver.jar
-
-          docker run --rm \
-            --network="shared_services" \
-            -v "${PWD}/schemaspy-output:/output" \
-            -v "${PWD}/jdbc-driver.jar:/drivers/jdbc-driver.jar" \
-            schemaspy/schemaspy:latest \
-            -t pgsql11 \
-            -dp /drivers/jdbc-driver.jar \
-            -db worms-cachedb \
-            -host worms-db \
-            -port 5432 \
-            -u "myuser" \
-            -p "mypassword" \
-            -I '^(auth_group|auth_group_permissions|auth_permission|auth_user|auth_user_groups|auth_user_user_permissions|django_admin_log|django_content_type|django_migrations|django_session)$'
-
-      - name: Export schema SQL
-        run: |
-          docker compose -f docker/docker-compose.yml exec -T \
-            -e PGPASSWORD="mypassword" \
-            worms-db \
-            pg_dump \
-              -U myuser \
-              -d worms-cachedb \
-              --schema-only \
-              --no-owner \
-              --no-privileges \
-            > schemaspy-output/schema.sql
-
-      - name: Deploy to gh-pages
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./schemaspy-output
-          destination_dir: database
-          publish_branch: gh-pages
-          keep_files: true
+    uses: paidiver/brokerage-service/.github/workflows/reusable-schemaspy.yml@main
+    with:
+      database_service: worms-db
+      application_service: worms-cache
+      database_name: worms-cachedb
+      database_host: worms-db
+      extra_env: |
+        POSTGRES_PORT_ALEMBIC=5432
+        POSTGRES_HOST_ALEMBIC=worms-db
+      excluded_tables: ^(auth_group|auth_group_permissions|auth_permission|auth_user|auth_user_groups|auth_user_user_permissions|django_admin_log|django_content_type|django_migrations|django_session)$
