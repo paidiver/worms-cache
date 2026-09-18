@@ -1,0 +1,15 @@
+ranks
+django_session
+django_migrations
+api_refreshstate
+django_admin_log
+auth_user_user_permissions
+auth_user_groups
+auth_group_permissions
+vernaculars
+name_index
+auth_permission
+taxa
+django_content_type
+auth_group
+auth_user
