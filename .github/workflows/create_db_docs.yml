@@ -1,0 +1,94 @@
+name: SchemaSpy
+
+
+permissions:
+  contents: write
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  generate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create .env file
+        run: |
+          echo POSTGRES_USER=myuser >> .env
+          echo POSTGRES_PASSWORD=mypassword >> .env
+          echo POSTGRES_DB=worms-cachedb >> .env
+          echo POSTGRES_HOST=worms-db >> .env
+          echo POSTGRES_PORT=5432 >> .env
+          echo POSTGRES_PORT_ALEMBIC=5432 >> .env
+          echo POSTGRES_HOST_ALEMBIC=worms-db >> .env
+
+      - name: Create shared_services network
+        run: docker network create shared_services || echo "Network already exists"
+
+      - name: Start stack
+        run: docker compose -f dockerfiles/docker-compose.yml up -d
+
+      - name: Wait for Postgres
+        run: |
+          for i in {1..60}; do
+            docker compose -f dockerfiles/docker-compose.yml exec -T worms-db pg_isready -U "myuser" && exit 0
+            sleep 2
+          done
+          exit 1
+
+      - name: Run migrations
+        run: docker compose -f dockerfiles/docker-compose.yml run --rm api poetry run alembic upgrade head
+
+      - name: Generate SchemaSpy docs (docker image)
+        run: |
+          mkdir -p docs
+          chmod -R a+rwx docs
+          curl -L https://jdbc.postgresql.org/download/postgresql-42.5.4.jar -o jdbc-driver.jar
+
+          docker run --rm \
+            --network="shared_services" \
+            -v "${PWD}/docs:/output" \
+            -v "${PWD}/jdbc-driver.jar:/drivers/jdbc-driver.jar" \
+            schemaspy/schemaspy:latest \
+            -t pgsql11 \
+            -dp /drivers/jdbc-driver.jar \
+            -db worms-cachedb \
+            -host worms-db \
+            -port 5432 \
+            -u "myuser" \
+            -p "mypassword"
+
+      - name: Export schema SQL
+        run: |
+          docker compose -f dockerfiles/docker-compose.yml exec -T \
+            -e PGPASSWORD="mypassword" \
+            worms-db \
+            pg_dump -U myuser -d worms-cachedb \
+              --schema-only --no-owner --no-privileges \
+            > docs/schema.sql
+
+      - name: Commit and push docs if changed
+        run: |
+          set -e
+
+          # Configure identity for the commit
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Stage generated artifacts
+          git add docs/
+
+          # Only commit if there are staged changes
+          if git diff --cached --quiet; then
+            echo "No changes in docs/ to commit."
+            exit 0
+          fi
+
+          git commit -m "Update SchemaSpy docs and schema SQL [skip ci]"
+          git push
