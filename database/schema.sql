@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict 1baVaF1NVAe1VkrJIcjNn0Rejd5uqypGbKghqqPeVKHgW102H4QbroHW6xNhAuO
+\restrict GnNPSCUNAF3XTYidNxHSbdcW28LCfEtwhD6Fc0TWrgZT8KedgFbxrAncSiSyJ66
 
 -- Dumped from database version 18.6 (Debian 18.6-1.pgdg13+2)
 -- Dumped by pg_dump version 18.6 (Debian 18.6-1.pgdg13+2)
@@ -1076,5 +1076,5 @@ ALTER TABLE ONLY public.vernaculars
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 1baVaF1NVAe1VkrJIcjNn0Rejd5uqypGbKghqqPeVKHgW102H4QbroHW6xNhAuO
+\unrestrict GnNPSCUNAF3XTYidNxHSbdcW28LCfEtwhD6Fc0TWrgZT8KedgFbxrAncSiSyJ66
 
