@@ -1,0 +1,492 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<database name="worms-cachedb" schema="public" type="PostgreSQL - 18.6 (Debian 18.6-1.pgdg13+2)">
+   <tables>
+      <table name="api_refreshstate" remarks="" schema="public" type="TABLE">
+         <column autoUpdated="false" defaultValue="null" digits="0" id="0" name="name" nullable="false" remarks="" size="32" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="6" id="1" name="last_success_at" nullable="true" remarks="" size="35" type="timestamptz" typeCode="93"/>
+         <column autoUpdated="false" defaultValue="null" digits="6" id="2" name="started_at" nullable="true" remarks="" size="35" type="timestamptz" typeCode="93"/>
+         <column autoUpdated="false" defaultValue="null" digits="6" id="3" name="finished_at" nullable="true" remarks="" size="35" type="timestamptz" typeCode="93"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="4" name="status" nullable="false" remarks="" size="16" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="5" name="failed_ids" nullable="false" remarks="" size="2147483647" type="jsonb" typeCode="1111"/>
+         <primaryKey column="name" sequenceNumberInPK="1"/>
+         <index name="api_refreshstate_pkey" unique="true">
+            <column ascending="true" name="name"/>
+         </index>
+         <index name="api_refreshstate_name_87a06445_like" unique="false">
+            <column ascending="true" name="name"/>
+         </index>
+      </table>
+      <table name="name_index" remarks="" schema="public" type="TABLE">
+         <column autoUpdated="true" defaultValue="null" digits="0" id="0" name="id" nullable="false" remarks="" size="19" type="int8" typeCode="-5"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="1" name="name_type" nullable="false" remarks="" size="16" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="2" name="name_raw" nullable="false" remarks="" size="512" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="3" name="canonical_norm" nullable="false" remarks="" size="512" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="4" name="genus_norm" nullable="true" remarks="" size="128" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="5" name="epithet_norm" nullable="true" remarks="" size="128" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="6" name="genus_prefix2" nullable="true" remarks="" size="2" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="7" name="genus_prefix3" nullable="true" remarks="" size="3" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="8" name="canon_prefix3" nullable="true" remarks="" size="3" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="9" name="taxon_id" nullable="false" remarks="" size="10" type="int4" typeCode="4">
+            <parent column="aphia_id" foreignKey="name_index_taxon_id_15fd61e7_fk_taxa_aphia_id" implied="false" onDeleteCascade="false" schema="public" table="taxa"/>
+         </column>
+         <primaryKey column="id" sequenceNumberInPK="1"/>
+         <index name="name_index_pkey" unique="true">
+            <column ascending="true" name="id"/>
+         </index>
+         <index name="name_index_canon_prefix3_1cf9deb2" unique="false">
+            <column ascending="true" name="canon_prefix3"/>
+         </index>
+         <index name="name_index_canon_prefix3_1cf9deb2_like" unique="false">
+            <column ascending="true" name="canon_prefix3"/>
+         </index>
+         <index name="name_index_canonical_norm_b595cb52" unique="false">
+            <column ascending="true" name="canonical_norm"/>
+         </index>
+         <index name="name_index_canonical_norm_b595cb52_like" unique="false">
+            <column ascending="true" name="canonical_norm"/>
+         </index>
+         <index name="name_index_epithet_norm_fb8c4619" unique="false">
+            <column ascending="true" name="epithet_norm"/>
+         </index>
+         <index name="name_index_epithet_norm_fb8c4619_like" unique="false">
+            <column ascending="true" name="epithet_norm"/>
+         </index>
+         <index name="name_index_genus_norm_98f1cde8" unique="false">
+            <column ascending="true" name="genus_norm"/>
+         </index>
+         <index name="name_index_genus_norm_98f1cde8_like" unique="false">
+            <column ascending="true" name="genus_norm"/>
+         </index>
+         <index name="name_index_genus_prefix2_cf64da3a" unique="false">
+            <column ascending="true" name="genus_prefix2"/>
+         </index>
+         <index name="name_index_genus_prefix2_cf64da3a_like" unique="false">
+            <column ascending="true" name="genus_prefix2"/>
+         </index>
+         <index name="name_index_genus_prefix3_1cdcae55" unique="false">
+            <column ascending="true" name="genus_prefix3"/>
+         </index>
+         <index name="name_index_genus_prefix3_1cdcae55_like" unique="false">
+            <column ascending="true" name="genus_prefix3"/>
+         </index>
+         <index name="name_index_taxon_id_15fd61e7" unique="false">
+            <column ascending="true" name="taxon_id"/>
+         </index>
+         <index name="nameidx_canon_trgm_gin" unique="false">
+            <column ascending="true" name="canonical_norm"/>
+         </index>
+         <index name="nameidx_genus_epithet_idx" unique="false">
+            <column ascending="true" name="genus_norm"/>
+            <column ascending="true" name="epithet_norm"/>
+         </index>
+         <index name="nameidx_genus_trgm_gin" unique="false">
+            <column ascending="true" name="genus_norm"/>
+         </index>
+         <index name="uq_nameindex" unique="true">
+            <column ascending="true" name="taxon_id"/>
+            <column ascending="true" name="name_type"/>
+            <column ascending="true" name="name_raw"/>
+         </index>
+      </table>
+      <table name="ranks" remarks="" schema="public" type="TABLE">
+         <column autoUpdated="false" defaultValue="null" digits="6" id="0" name="created_at" nullable="false" remarks="" size="35" type="timestamptz" typeCode="93"/>
+         <column autoUpdated="false" defaultValue="null" digits="6" id="1" name="updated_at" nullable="false" remarks="" size="35" type="timestamptz" typeCode="93"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="2" name="name" nullable="false" remarks="" size="64" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="3" name="rank_id" nullable="false" remarks="" size="10" type="int4" typeCode="4"/>
+         <primaryKey column="name" sequenceNumberInPK="1"/>
+         <index name="ranks_pkey" unique="true">
+            <column ascending="true" name="name"/>
+         </index>
+         <index name="rank_id_idx" unique="false">
+            <column ascending="true" name="rank_id"/>
+         </index>
+         <index name="rank_name_idx" unique="false">
+            <column ascending="true" name="name"/>
+         </index>
+         <index name="ranks_name_e75b2431_like" unique="false">
+            <column ascending="true" name="name"/>
+         </index>
+         <index name="uq_rank" unique="true">
+            <column ascending="true" name="rank_id"/>
+            <column ascending="true" name="name"/>
+         </index>
+         <checkConstraint constraint="(rank_id &gt;= 0)" name="ranks_rank_id_check"/>
+      </table>
+      <table name="taxa" remarks="" schema="public" type="TABLE">
+         <column autoUpdated="false" defaultValue="null" digits="6" id="0" name="created_at" nullable="false" remarks="" size="35" type="timestamptz" typeCode="93"/>
+         <column autoUpdated="false" defaultValue="null" digits="6" id="1" name="updated_at" nullable="false" remarks="" size="35" type="timestamptz" typeCode="93"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="2" name="aphia_id" nullable="false" remarks="" size="10" type="int4" typeCode="4">
+            <child column="taxon_id" foreignKey="name_index_taxon_id_15fd61e7_fk_taxa_aphia_id" implied="false" onDeleteCascade="false" schema="public" table="name_index"/>
+            <child column="parent_id" foreignKey="taxa_parent_id_3bdbb46d_fk_taxa_aphia_id" implied="false" onDeleteCascade="false" schema="public" table="taxa"/>
+            <child column="valid_taxon_id" foreignKey="taxa_valid_taxon_id_31d7adb3_fk_taxa_aphia_id" implied="false" onDeleteCascade="false" schema="public" table="taxa"/>
+            <child column="taxon_id" foreignKey="vernaculars_taxon_id_39ad9304_fk_taxa_aphia_id" implied="false" onDeleteCascade="false" schema="public" table="vernaculars"/>
+         </column>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="3" name="scientific_name" nullable="false" remarks="" size="512" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="4" name="rank" nullable="false" remarks="" size="64" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="5" name="status" nullable="false" remarks="" size="64" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="6" id="6" name="worms_modified" nullable="true" remarks="" size="35" type="timestamptz" typeCode="93"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="7" name="source_url" nullable="true" remarks="" size="200" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="6" id="8" name="cached_at" nullable="false" remarks="" size="35" type="timestamptz" typeCode="93"/>
+         <column autoUpdated="false" defaultValue="null" digits="6" id="9" name="last_accessed_at" nullable="true" remarks="" size="35" type="timestamptz" typeCode="93"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="10" name="access_count" nullable="false" remarks="" size="19" type="int8" typeCode="-5"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="11" name="parent_id" nullable="true" remarks="" size="10" type="int4" typeCode="4">
+            <parent column="aphia_id" foreignKey="taxa_parent_id_3bdbb46d_fk_taxa_aphia_id" implied="false" onDeleteCascade="false" schema="public" table="taxa"/>
+         </column>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="12" name="valid_taxon_id" nullable="true" remarks="" size="10" type="int4" typeCode="4">
+            <parent column="aphia_id" foreignKey="taxa_valid_taxon_id_31d7adb3_fk_taxa_aphia_id" implied="false" onDeleteCascade="false" schema="public" table="taxa"/>
+         </column>
+         <primaryKey column="aphia_id" sequenceNumberInPK="1"/>
+         <index name="taxa_pkey" unique="true">
+            <column ascending="true" name="aphia_id"/>
+         </index>
+         <index name="taxa_cached_at_idx" unique="false">
+            <column ascending="true" name="cached_at"/>
+         </index>
+         <index name="taxa_last_accessed_at_047716f1" unique="false">
+            <column ascending="true" name="last_accessed_at"/>
+         </index>
+         <index name="taxa_parent_id_3bdbb46d" unique="false">
+            <column ascending="true" name="parent_id"/>
+         </index>
+         <index name="taxa_parent_idx" unique="false">
+            <column ascending="true" name="parent_id"/>
+         </index>
+         <index name="taxa_rank_3c995505" unique="false">
+            <column ascending="true" name="rank"/>
+         </index>
+         <index name="taxa_rank_3c995505_like" unique="false">
+            <column ascending="true" name="rank"/>
+         </index>
+         <index name="taxa_rank_status_idx" unique="false">
+            <column ascending="true" name="rank"/>
+            <column ascending="true" name="status"/>
+         </index>
+         <index name="taxa_scientific_name_d6c0f7e5" unique="false">
+            <column ascending="true" name="scientific_name"/>
+         </index>
+         <index name="taxa_scientific_name_d6c0f7e5_like" unique="false">
+            <column ascending="true" name="scientific_name"/>
+         </index>
+         <index name="taxa_scientific_name_idx" unique="false">
+            <column ascending="true" name="scientific_name"/>
+         </index>
+         <index name="taxa_status_a0e36b3f" unique="false">
+            <column ascending="true" name="status"/>
+         </index>
+         <index name="taxa_status_a0e36b3f_like" unique="false">
+            <column ascending="true" name="status"/>
+         </index>
+         <index name="taxa_valid_taxon_id_31d7adb3" unique="false">
+            <column ascending="true" name="valid_taxon_id"/>
+         </index>
+         <index name="taxa_valid_taxon_idx" unique="false">
+            <column ascending="true" name="valid_taxon_id"/>
+         </index>
+         <checkConstraint constraint="(aphia_id &gt;= 0)" name="taxa_aphia_id_check"/>
+      </table>
+      <table name="vernaculars" remarks="" schema="public" type="TABLE">
+         <column autoUpdated="true" defaultValue="null" digits="0" id="0" name="id" nullable="false" remarks="" size="19" type="int8" typeCode="-5"/>
+         <column autoUpdated="false" defaultValue="null" digits="6" id="1" name="created_at" nullable="false" remarks="" size="35" type="timestamptz" typeCode="93"/>
+         <column autoUpdated="false" defaultValue="null" digits="6" id="2" name="updated_at" nullable="false" remarks="" size="35" type="timestamptz" typeCode="93"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="3" name="name" nullable="false" remarks="" size="512" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="4" name="language_code" nullable="false" remarks="" size="8" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="5" name="taxon_id" nullable="false" remarks="" size="10" type="int4" typeCode="4">
+            <parent column="aphia_id" foreignKey="vernaculars_taxon_id_39ad9304_fk_taxa_aphia_id" implied="false" onDeleteCascade="false" schema="public" table="taxa"/>
+         </column>
+         <primaryKey column="id" sequenceNumberInPK="1"/>
+         <index name="vernaculars_pkey" unique="true">
+            <column ascending="true" name="id"/>
+         </index>
+         <index name="uq_vern" unique="true">
+            <column ascending="true" name="taxon_id"/>
+            <column ascending="true" name="name"/>
+            <column ascending="true" name="language_code"/>
+         </index>
+         <index name="vern_name_trgm_gin" unique="false">
+            <column ascending="true" name="name"/>
+         </index>
+         <index name="vern_taxon_idx" unique="false">
+            <column ascending="true" name="taxon_id"/>
+         </index>
+         <index name="vern_taxon_lang_idx" unique="false">
+            <column ascending="true" name="taxon_id"/>
+            <column ascending="true" name="language_code"/>
+         </index>
+         <index name="vernaculars_language_code_b0dbd09b" unique="false">
+            <column ascending="true" name="language_code"/>
+         </index>
+         <index name="vernaculars_language_code_b0dbd09b_like" unique="false">
+            <column ascending="true" name="language_code"/>
+         </index>
+         <index name="vernaculars_taxon_id_39ad9304" unique="false">
+            <column ascending="true" name="taxon_id"/>
+         </index>
+      </table>
+   </tables>
+   <routines>
+      <routine dataAccess="MODIFIES" deterministic="true" name="gin_extract_query_trgm(text, internal, smallint, internal, internal, internal, internal)" returnType="internal" securityType="INVOKER" type="FUNCTION">
+         <comment/>
+         <definition language="c"><![CDATA[Redacted, use --include-routine-definition]]></definition>
+         <parameters>
+            <parameter mode="IN" type="text"/>
+            <parameter mode="IN" type="internal"/>
+            <parameter mode="IN" type="smallint"/>
+            <parameter mode="IN" type="internal"/>
+            <parameter mode="IN" type="internal"/>
+            <parameter mode="IN" type="internal"/>
+            <parameter mode="IN" type="internal"/>
+         </parameters>
+      </routine>
+      <routine dataAccess="MODIFIES" deterministic="true" name="gin_extract_value_trgm(text, internal)" returnType="internal" securityType="INVOKER" type="FUNCTION">
+         <comment/>
+         <definition language="c"><![CDATA[Redacted, use --include-routine-definition]]></definition>
+         <parameters>
+            <parameter mode="IN" type="text"/>
+            <parameter mode="IN" type="internal"/>
+         </parameters>
+      </routine>
+      <routine dataAccess="MODIFIES" deterministic="true" name="gin_trgm_consistent(internal, smallint, text, integer, internal, internal, internal, internal)" returnType="boolean" securityType="INVOKER" type="FUNCTION">
+         <comment/>
+         <definition language="c"><![CDATA[Redacted, use --include-routine-definition]]></definition>
+         <parameters>
+            <parameter mode="IN" type="internal"/>
+            <parameter mode="IN" type="smallint"/>
+            <parameter mode="IN" type="text"/>
+            <parameter mode="IN" type="integer"/>
+            <parameter mode="IN" type="internal"/>
+            <parameter mode="IN" type="internal"/>
+            <parameter mode="IN" type="internal"/>
+            <parameter mode="IN" type="internal"/>
+         </parameters>
+      </routine>
+      <routine dataAccess="MODIFIES" deterministic="true" name="gin_trgm_triconsistent(internal, smallint, text, integer, internal, internal, internal)" returnType="&quot;char&quot;" securityType="INVOKER" type="FUNCTION">
+         <comment/>
+         <definition language="c"><![CDATA[Redacted, use --include-routine-definition]]></definition>
+         <parameters>
+            <parameter mode="IN" type="internal"/>
+            <parameter mode="IN" type="smallint"/>
+            <parameter mode="IN" type="text"/>
+            <parameter mode="IN" type="integer"/>
+            <parameter mode="IN" type="internal"/>
+            <parameter mode="IN" type="internal"/>
+            <parameter mode="IN" type="internal"/>
+         </parameters>
+      </routine>
+      <routine dataAccess="MODIFIES" deterministic="true" name="gtrgm_compress(internal)" returnType="internal" securityType="INVOKER" type="FUNCTION">
+         <comment/>
+         <definition language="c"><![CDATA[Redacted, use --include-routine-definition]]></definition>
+         <parameters>
+            <parameter mode="IN" type="internal"/>
+         </parameters>
+      </routine>
+      <routine dataAccess="MODIFIES" deterministic="true" name="gtrgm_consistent(internal, text, smallint, oid, internal)" returnType="boolean" securityType="INVOKER" type="FUNCTION">
+         <comment/>
+         <definition language="c"><![CDATA[Redacted, use --include-routine-definition]]></definition>
+         <parameters>
+            <parameter mode="IN" type="internal"/>
+            <parameter mode="IN" type="text"/>
+            <parameter mode="IN" type="smallint"/>
+            <parameter mode="IN" type="oid"/>
+            <parameter mode="IN" type="internal"/>
+         </parameters>
+      </routine>
+      <routine dataAccess="MODIFIES" deterministic="true" name="gtrgm_decompress(internal)" returnType="internal" securityType="INVOKER" type="FUNCTION">
+         <comment/>
+         <definition language="c"><![CDATA[Redacted, use --include-routine-definition]]></definition>
+         <parameters>
+            <parameter mode="IN" type="internal"/>
+         </parameters>
+      </routine>
+      <routine dataAccess="MODIFIES" deterministic="true" name="gtrgm_distance(internal, text, smallint, oid, internal)" returnType="double precision" securityType="INVOKER" type="FUNCTION">
+         <comment/>
+         <definition language="c"><![CDATA[Redacted, use --include-routine-definition]]></definition>
+         <parameters>
+            <parameter mode="IN" type="internal"/>
+            <parameter mode="IN" type="text"/>
+            <parameter mode="IN" type="smallint"/>
+            <parameter mode="IN" type="oid"/>
+            <parameter mode="IN" type="internal"/>
+         </parameters>
+      </routine>
+      <routine dataAccess="MODIFIES" deterministic="true" name="gtrgm_in(cstring)" returnType="gtrgm" securityType="INVOKER" type="FUNCTION">
+         <comment/>
+         <definition language="c"><![CDATA[Redacted, use --include-routine-definition]]></definition>
+         <parameters>
+            <parameter mode="IN" type="cstring"/>
+         </parameters>
+      </routine>
+      <routine dataAccess="MODIFIES" deterministic="true" name="gtrgm_options(internal)" returnType="void" securityType="INVOKER" type="FUNCTION">
+         <comment/>
+         <definition language="c"><![CDATA[Redacted, use --include-routine-definition]]></definition>
+         <parameters>
+            <parameter mode="IN" type="internal"/>
+         </parameters>
+      </routine>
+      <routine dataAccess="MODIFIES" deterministic="true" name="gtrgm_out(gtrgm)" returnType="cstring" securityType="INVOKER" type="FUNCTION">
+         <comment/>
+         <definition language="c"><![CDATA[Redacted, use --include-routine-definition]]></definition>
+         <parameters>
+            <parameter mode="IN" type="gtrgm"/>
+         </parameters>
+      </routine>
+      <routine dataAccess="MODIFIES" deterministic="true" name="gtrgm_penalty(internal, internal, internal)" returnType="internal" securityType="INVOKER" type="FUNCTION">
+         <comment/>
+         <definition language="c"><![CDATA[Redacted, use --include-routine-definition]]></definition>
+         <parameters>
+            <parameter mode="IN" type="internal"/>
+            <parameter mode="IN" type="internal"/>
+            <parameter mode="IN" type="internal"/>
+         </parameters>
+      </routine>
+      <routine dataAccess="MODIFIES" deterministic="true" name="gtrgm_picksplit(internal, internal)" returnType="internal" securityType="INVOKER" type="FUNCTION">
+         <comment/>
+         <definition language="c"><![CDATA[Redacted, use --include-routine-definition]]></definition>
+         <parameters>
+            <parameter mode="IN" type="internal"/>
+            <parameter mode="IN" type="internal"/>
+         </parameters>
+      </routine>
+      <routine dataAccess="MODIFIES" deterministic="true" name="gtrgm_same(gtrgm, gtrgm, internal)" returnType="internal" securityType="INVOKER" type="FUNCTION">
+         <comment/>
+         <definition language="c"><![CDATA[Redacted, use --include-routine-definition]]></definition>
+         <parameters>
+            <parameter mode="IN" type="gtrgm"/>
+            <parameter mode="IN" type="gtrgm"/>
+            <parameter mode="IN" type="internal"/>
+         </parameters>
+      </routine>
+      <routine dataAccess="MODIFIES" deterministic="true" name="gtrgm_union(internal, internal)" returnType="gtrgm" securityType="INVOKER" type="FUNCTION">
+         <comment/>
+         <definition language="c"><![CDATA[Redacted, use --include-routine-definition]]></definition>
+         <parameters>
+            <parameter mode="IN" type="internal"/>
+            <parameter mode="IN" type="internal"/>
+         </parameters>
+      </routine>
+      <routine dataAccess="MODIFIES" deterministic="false" name="set_limit(real)" returnType="real" securityType="INVOKER" type="FUNCTION">
+         <comment/>
+         <definition language="c"><![CDATA[Redacted, use --include-routine-definition]]></definition>
+         <parameters>
+            <parameter mode="IN" type="real"/>
+         </parameters>
+      </routine>
+      <routine dataAccess="MODIFIES" deterministic="false" name="show_limit()" returnType="real" securityType="INVOKER" type="FUNCTION">
+         <comment/>
+         <definition language="c"><![CDATA[Redacted, use --include-routine-definition]]></definition>
+         <parameters>
+            <parameter mode="IN"/>
+         </parameters>
+      </routine>
+      <routine dataAccess="MODIFIES" deterministic="true" name="show_trgm(text)" returnType="text[]" securityType="INVOKER" type="FUNCTION">
+         <comment/>
+         <definition language="c"><![CDATA[Redacted, use --include-routine-definition]]></definition>
+         <parameters>
+            <parameter mode="IN" type="text"/>
+         </parameters>
+      </routine>
+      <routine dataAccess="MODIFIES" deterministic="true" name="similarity(text, text)" returnType="real" securityType="INVOKER" type="FUNCTION">
+         <comment/>
+         <definition language="c"><![CDATA[Redacted, use --include-routine-definition]]></definition>
+         <parameters>
+            <parameter mode="IN" type="text"/>
+            <parameter mode="IN" type="text"/>
+         </parameters>
+      </routine>
+      <routine dataAccess="MODIFIES" deterministic="true" name="similarity_dist(text, text)" returnType="real" securityType="INVOKER" type="FUNCTION">
+         <comment/>
+         <definition language="c"><![CDATA[Redacted, use --include-routine-definition]]></definition>
+         <parameters>
+            <parameter mode="IN" type="text"/>
+            <parameter mode="IN" type="text"/>
+         </parameters>
+      </routine>
+      <routine dataAccess="MODIFIES" deterministic="false" name="similarity_op(text, text)" returnType="boolean" securityType="INVOKER" type="FUNCTION">
+         <comment/>
+         <definition language="c"><![CDATA[Redacted, use --include-routine-definition]]></definition>
+         <parameters>
+            <parameter mode="IN" type="text"/>
+            <parameter mode="IN" type="text"/>
+         </parameters>
+      </routine>
+      <routine dataAccess="MODIFIES" deterministic="true" name="strict_word_similarity(text, text)" returnType="real" securityType="INVOKER" type="FUNCTION">
+         <comment/>
+         <definition language="c"><![CDATA[Redacted, use --include-routine-definition]]></definition>
+         <parameters>
+            <parameter mode="IN" type="text"/>
+            <parameter mode="IN" type="text"/>
+         </parameters>
+      </routine>
+      <routine dataAccess="MODIFIES" deterministic="false" name="strict_word_similarity_commutator_op(text, text)" returnType="boolean" securityType="INVOKER" type="FUNCTION">
+         <comment/>
+         <definition language="c"><![CDATA[Redacted, use --include-routine-definition]]></definition>
+         <parameters>
+            <parameter mode="IN" type="text"/>
+            <parameter mode="IN" type="text"/>
+         </parameters>
+      </routine>
+      <routine dataAccess="MODIFIES" deterministic="true" name="strict_word_similarity_dist_commutator_op(text, text)" returnType="real" securityType="INVOKER" type="FUNCTION">
+         <comment/>
+         <definition language="c"><![CDATA[Redacted, use --include-routine-definition]]></definition>
+         <parameters>
+            <parameter mode="IN" type="text"/>
+            <parameter mode="IN" type="text"/>
+         </parameters>
+      </routine>
+      <routine dataAccess="MODIFIES" deterministic="true" name="strict_word_similarity_dist_op(text, text)" returnType="real" securityType="INVOKER" type="FUNCTION">
+         <comment/>
+         <definition language="c"><![CDATA[Redacted, use --include-routine-definition]]></definition>
+         <parameters>
+            <parameter mode="IN" type="text"/>
+            <parameter mode="IN" type="text"/>
+         </parameters>
+      </routine>
+      <routine dataAccess="MODIFIES" deterministic="false" name="strict_word_similarity_op(text, text)" returnType="boolean" securityType="INVOKER" type="FUNCTION">
+         <comment/>
+         <definition language="c"><![CDATA[Redacted, use --include-routine-definition]]></definition>
+         <parameters>
+            <parameter mode="IN" type="text"/>
+            <parameter mode="IN" type="text"/>
+         </parameters>
+      </routine>
+      <routine dataAccess="MODIFIES" deterministic="true" name="word_similarity(text, text)" returnType="real" securityType="INVOKER" type="FUNCTION">
+         <comment/>
+         <definition language="c"><![CDATA[Redacted, use --include-routine-definition]]></definition>
+         <parameters>
+            <parameter mode="IN" type="text"/>
+            <parameter mode="IN" type="text"/>
+         </parameters>
+      </routine>
+      <routine dataAccess="MODIFIES" deterministic="false" name="word_similarity_commutator_op(text, text)" returnType="boolean" securityType="INVOKER" type="FUNCTION">
+         <comment/>
+         <definition language="c"><![CDATA[Redacted, use --include-routine-definition]]></definition>
+         <parameters>
+            <parameter mode="IN" type="text"/>
+            <parameter mode="IN" type="text"/>
+         </parameters>
+      </routine>
+      <routine dataAccess="MODIFIES" deterministic="true" name="word_similarity_dist_commutator_op(text, text)" returnType="real" securityType="INVOKER" type="FUNCTION">
+         <comment/>
+         <definition language="c"><![CDATA[Redacted, use --include-routine-definition]]></definition>
+         <parameters>
+            <parameter mode="IN" type="text"/>
+            <parameter mode="IN" type="text"/>
+         </parameters>
+      </routine>
+      <routine dataAccess="MODIFIES" deterministic="true" name="word_similarity_dist_op(text, text)" returnType="real" securityType="INVOKER" type="FUNCTION">
+         <comment/>
+         <definition language="c"><![CDATA[Redacted, use --include-routine-definition]]></definition>
+         <parameters>
+            <parameter mode="IN" type="text"/>
+            <parameter mode="IN" type="text"/>
+         </parameters>
+      </routine>
+      <routine dataAccess="MODIFIES" deterministic="false" name="word_similarity_op(text, text)" returnType="boolean" securityType="INVOKER" type="FUNCTION">
+         <comment/>
+         <definition language="c"><![CDATA[Redacted, use --include-routine-definition]]></definition>
+         <parameters>
+            <parameter mode="IN" type="text"/>
+            <parameter mode="IN" type="text"/>
+         </parameters>
+      </routine>
+   </routines>
+</database>
