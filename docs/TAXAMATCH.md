@@ -1,8 +1,8 @@
-## Taxamatch service
+# Taxamatch Service
 
 This is a small Ruby/Sinatra microservice (`taxamatch_service/`) that provides fast fuzzy matching between user-supplied scientific names and a set of candidate names produced by the Django API (`NameIndex`). It implements Tony Rees’ **TaxaMatch** algorithm via the `taxamatch_rb` gem, and is used by the Django endpoints `GET /taxa/match_names` and `GET /taxa/match_names_pair` to decide which candidate `NameIndex` rows truly match the query.
 
-### What it does
+## What it does
 
 The service exposes two endpoints:
 
@@ -18,7 +18,7 @@ It returns one result per query including:
 * `mode`: either `single_token` or `full_taxamatch`
 * `errors`: any parsing/matching warnings (e.g., candidate truncation)
 
-### Matching modes
+## Matching modes
 
 To keep matching fast and robust, the service chooses an algorithm based on the number of tokens in the input:
 
@@ -32,7 +32,7 @@ To keep matching fast and robust, the service chooses an algorithm based on the 
 * **`full_taxamatch` mode** (2+ tokens, e.g. `"Asterias rubens"`):
   Uses the TaxaMatch atomizer to parse both input and candidate. If parsing succeeds it runs `taxamatch_preparsed`; otherwise it falls back to `taxamatch(input, candidate)`.
 
-### Safety limits & configuration
+## Safety limits and configuration
 
 To protect the service from overly large requests, the API enforces:
 
@@ -41,7 +41,7 @@ To protect the service from overly large requests, the API enforces:
 
 These are configurable via environment variables (see `docker-compose.yml`).
 
-### Role in the overall pipeline
+## Role in the overall pipeline
 
 1. Django builds a **candidate set** from the local cache (`NameIndex`, trigram + indexes).
 2. Django sends `(input, candidates)` batches to Taxamatch.
@@ -50,7 +50,7 @@ These are configurable via environment variables (see `docker-compose.yml`).
 
 This design keeps the expensive fuzzy matching logic out of the main API process, while still enabling matching for autocomplete and batch name reconciliation.
 
-## Development Workflow
+## Development workflow
 
 To run the tests for the ruby microservice:
 
@@ -58,7 +58,7 @@ To run the tests for the ruby microservice:
 docker compose -f docker/docker-compose.yml run --rm -e RACK_ENV=test taxamatch bundle _2.4.22_ exec rspec
 ```
 
-## Endoint example
+## Endpoint example
 
 Request:
 

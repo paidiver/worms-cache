@@ -26,6 +26,13 @@ These are the mapped endpoints from the WoRMS REST API:
 * /AphiaSynonymsByAphiaID/{ID} -> /api/taxa/synonyms/{aphia_id}/
 * /AphiaVernacularsByAphiaID/{ID} -> /api/vernaculars/{aphia_id}/
 
+## Documentation
+
+* [API examples](docs/API_EXAMPLES.md)
+* [Deployment guide](docs/DEPLOYMENT.md)
+* [Taxamatch service](docs/TAXAMATCH.md)
+* [Database schema](https://paidiver.github.io/worms-cache/database/)
+
 ## Requirements
 
 ### Runtime
@@ -36,7 +43,7 @@ These are the mapped endpoints from the WoRMS REST API:
 ### Local development (without Docker)
 
 * Python 3.13
-* uv
+* uv (Python dependency management tool)
 
 ## Architecture
 
@@ -50,6 +57,8 @@ These are the mapped endpoints from the WoRMS REST API:
 │   ├── docker-compose.yml
 │   ├── Dockerfile
 │   └── scripts/
+├── deployment/
+│   └── charts/api/       # Helm chart
 ├── taxamatch_service/  # Ruby microservice for fuzzy name matching
 ├── manage.py
 ├── pyproject.toml      # Project metadata & dependencies (uv)
@@ -61,10 +70,15 @@ These are the mapped endpoints from the WoRMS REST API:
 └── .env.example
 ```
 
-### Database Schema
+### Dependency Management
 
-The database schema consists of several tables that store taxonomic records, their relationships, and related metadata. The main tables include `taxa`, `ranks`, `vernaculars`, and `name_index`. For a detailed information about the database, take a look at the [database docs](https://paidiver.github.io/woms-cache/database), which is an auto-generated database documentation using SchemaSpy.
+This project uses **uv** for dependency management and environments.
 
+Key points:
+
+* Dependencies are defined in `pyproject.toml`
+* Locked versions live in `uv.lock`
+* Development tools (linting, formatting, testing) are installed via dependency groups
 
 ### Services
 
@@ -85,13 +99,34 @@ The local cache stores:
 
 The `NameIndex` is a denormalized table designed for fast lookup and fuzzy matching, with trigram indexes on `canonical_name` and prefix indexes on `genus` and `epithet`. It includes both accepted names and synonyms as separate rows. It is used for autocomplete, candidate selection for Taxamatch, and high-performance fuzzy search.
 
+### Database Schema
+
+For detailed information about the database, see the [database documentation](https://paidiver.github.io/worms-cache/database/), which is generated automatically using SchemaSpy.
+
 ### Taxamatch Service
 
 A separate Ruby microservice implements the Tony Rees Taxamatch algorithm for fuzzy name matching. The Django API calls this service to get candidate matches for user-provided names, which are then resolved to AphiaIDs using the local cache. More information on the Taxamatch service can be found in the [Taxamatch Documentation](docs/TAXAMATCH.md) document.
 
+### Scheduled Refresh
+
+To update the local cache with recent changes from WoRMS, a refresh process is implemented. It identifies recently modified records in WoRMS and re-ingests them to keep the cache up-to-date.
+The refresh can be run on demand or scheduled to run:
+
+```
+docker compose -f docker/docker-compose.yml run --rm worms-cache python manage.py refresh_worms
+```
+
+The flag `--dry-run` can be used to log which AphiaIDs would be refreshed without actually performing the refresh. The flag `--cache-ttl` can be used to specify a cutoff date for modified records (e.g., `--cache-ttl 7` to refresh records modified in the last 7 days). Refresh updates modified records, new taxa referenced in annotations, and rank updates if required.
+
+### Deployment
+
+The [deployment](deployment) directory contains the Helm chart used to deploy this app. For information about the deployment process, configuration options, usage instructions, and Docker images, see the [deployment guide](docs/DEPLOYMENT.md).
+
 ## Quick Start
 
-### 1. Create environment file
+### Docker (Recommended)
+
+1. Create environment file
 
 Configuration is provided via environment variables defined in `.env`.
 
@@ -122,7 +157,7 @@ TAXAMATCH_URL=http://taxamatch:8080 # URL for Taxamatch microservice
 INGEST_API_TOKEN=mysecrettoken # Token for authenticating cache ingestion API (set in production)
 ```
 
-### 2. Build and run the stack
+2. Build and run the stack
 
 First, ensure you have a shared Docker network named `shared_services` (used for inter-container communication with the Annotation API service):
 
@@ -143,7 +178,7 @@ This will:
 * Start the Django development server
 * Start the Taxamatch microservice
 
-### 3. Test the API
+3. Test the API
 
 Health endpoint:
 
@@ -163,8 +198,7 @@ API schema and documentation:
 http://localhost:8000/api/docs/
 ```
 
-
-## Database Migrations
+### Database Migrations
 
 Create new migrations after modifying models:
 
@@ -184,9 +218,7 @@ Apply migrations:
 docker compose -f docker/docker-compose.yml exec worms-cache python manage.py migrate
 ```
 
-## Cache Ingestion
-
-### Initial Ingestion
+### Cache Ingestion
 
 To run the innitial ingestion of WoRMS data, you can use the `ingest_worms` management command. This command takes a file containing a list of AphiaIDs to ingest, one per line. An example of the input file (`initial_aphia_ids.txt`) is included in the repository, containing a small set of AphiaIDs for testing.
 
@@ -226,16 +258,9 @@ After ingestion, in the same command, it will:
 * Adds synonyms as separate index rows
 * Bulk inserts with chunking data into the `NameIndex` table
 
-### Scheduled Refresh
+### Authentication
 
-To update the local cache with recent changes from WoRMS, a refresh process is implemented. It identifies recently modified records in WoRMS and re-ingests them to keep the cache up-to-date.
-The refresh can be run on demand or scheduled to run:
-
-```
-docker compose -f docker/docker-compose.yml run --rm worms-cache python manage.py refresh_worms
-```
-
-The flag `--dry-run` can be used to log which AphiaIDs would be refreshed without actually performing the refresh. The flag `--cache-ttl` can be used to specify a cutoff date for modified records (e.g., `--cache-ttl 7` to refresh records modified in the last 7 days). Refresh updates modified records, new taxa referenced in annotations, and rank updates if required.
+The API has one protected endpoint for cache ingestion (`/api/ingest/`) which requires a token for authentication. The token can be set in the environment variable `INGEST_API_TOKEN` and must be included in the `Authorization` header of the request as a Bearer token.
 
 ## Development Workflow
 
@@ -259,14 +284,6 @@ docker compose -f docker/docker-compose.yml run --rm worms-cache tox -e py313
 
 Coverage reports are written to `coverage_reports/`.
 
-## Deployment
-
-More information about the deployment of this app can be found in the [charts/README.md](charts/README.md) document.
-
-## Authentication
-
-The API has one protected endpoint for cache ingestion (`/api/ingest/`) which requires a token for authentication. The token can be set in the environment variable `INGEST_API_TOKEN` and must be included in the `Authorization` header of the request as a Bearer token.
-
 ## API Examples
 
 A collection of example API requests and responses is available in the [API Examples](docs/API_EXAMPLES.md) document.
@@ -274,5 +291,3 @@ A collection of example API requests and responses is available in the [API Exam
 ## Acknowledgements
 
 This project was supported by the UK Natural Environment Research Council (NERC) through the *Tools for automating image analysis for biodiversity monitoring (AIAB)* Funding Opportunity, reference code **UKRI052**.
-
-See [API contract and operational changes](docs/API_CONTRACT.md) for validation, errors, pagination, refresh checkpoints, and readiness.

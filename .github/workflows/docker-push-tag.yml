@@ -23,7 +23,7 @@ jobs:
       contents: write
     uses: paidiver/brokerage-service/.github/workflows/reusable-helm-publish.yml@main
     with:
-      chart_file: charts/api/Chart.yaml
-      charts_dir: charts
+      chart_file: deployment/charts/api/Chart.yaml
+      charts_dir: deployment/charts
       tag_prefix: docker-v
       release_name_template: "docker-v{{ .Version }}"

@@ -1,5 +1,7 @@
 # API Examples
 
+## Setup
+
 Set your API base URL once:
 
 ```bash
