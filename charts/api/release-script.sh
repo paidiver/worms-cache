@@ -50,17 +50,22 @@ cr index \
   --index-path .cr-index/index.yaml
 
 tmprepo="$(mktemp -d)"
-git init "${tmprepo}" >/dev/null
-git -C "${tmprepo}" checkout --orphan "${PAGES_BRANCH}" >/dev/null
+trap 'rm -rf "${tmprepo}"' EXIT
+
+git clone \
+  --depth 1 \
+  --branch "${PAGES_BRANCH}" \
+  --single-branch \
+  "$(git remote get-url origin)" \
+  "${tmprepo}" >/dev/null
 cp .cr-index/index.yaml "${tmprepo}/index.yaml"
 
 git -C "${tmprepo}" add index.yaml
-git -C "${tmprepo}" \
-  -c user.name="release-script" \
-  -c user.email="release-script@example.com" \
-  commit -m "Update Helm index" >/dev/null
+if ! git -C "${tmprepo}" diff --cached --quiet; then
+  git -C "${tmprepo}" \
+    -c user.name="release-script" \
+    -c user.email="release-script@example.com" \
+    commit -m "Update Helm index" >/dev/null
 
-git -C "${tmprepo}" remote add origin "$(git remote get-url origin)"
-git -C "${tmprepo}" push --force origin "${PAGES_BRANCH}"
-
-rm -rf "${tmprepo}"
+  git -C "${tmprepo}" push origin "${PAGES_BRANCH}"
+fi

@@ -3,6 +3,10 @@ name: SchemaSpy
 permissions:
   contents: write
 
+concurrency:
+  group: gh-pages
+  cancel-in-progress: false
+
 on:
   workflow_dispatch:
   push:
@@ -53,8 +57,8 @@ jobs:
 
       - name: Generate SchemaSpy docs
         run: |
-          mkdir -p docs
-          chmod -R a+rwx docs
+          mkdir -p schemaspy-output
+          chmod -R a+rwx schemaspy-output
 
           curl -L \
             https://jdbc.postgresql.org/download/postgresql-42.5.4.jar \
@@ -62,7 +66,7 @@ jobs:
 
           docker run --rm \
             --network="shared_services" \
-            -v "${PWD}/docs:/output" \
+            -v "${PWD}/schemaspy-output:/output" \
             -v "${PWD}/jdbc-driver.jar:/drivers/jdbc-driver.jar" \
             schemaspy/schemaspy:latest \
             -t pgsql11 \
@@ -71,7 +75,8 @@ jobs:
             -host worms-db \
             -port 5432 \
             -u "myuser" \
-            -p "mypassword"
+            -p "mypassword" \
+            -I '^(auth_group|auth_group_permissions|auth_permission|auth_user|auth_user_groups|auth_user_user_permissions|django_admin_log|django_content_type|django_migrations|django_session)$'
 
       - name: Export schema SQL
         run: |
@@ -84,12 +89,13 @@ jobs:
               --schema-only \
               --no-owner \
               --no-privileges \
-            > docs/schema.sql
+            > schemaspy-output/schema.sql
 
       - name: Deploy to gh-pages
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./docs
+          publish_dir: ./schemaspy-output
+          destination_dir: database
           publish_branch: gh-pages
-          force_orphan: true
+          keep_files: true
