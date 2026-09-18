@@ -32,18 +32,18 @@ jobs:
         run: docker network create shared_services || echo "Network already exists"
 
       - name: Start stack
-        run: docker compose -f dockerfiles/docker-compose.yml up -d
+        run: docker compose -f docker/docker-compose.yml up -d
 
       - name: Wait for Postgres
         run: |
           for i in {1..60}; do
-            docker compose -f dockerfiles/docker-compose.yml exec -T worms-db pg_isready -U "myuser" && exit 0
+            docker compose -f docker/docker-compose.yml exec -T worms-db pg_isready -U "myuser" && exit 0
             sleep 2
           done
           exit 1
 
       - name: Run migrations
-        run: docker compose -f dockerfiles/docker-compose.yml run --rm api poetry run alembic upgrade head
+        run: docker compose -f docker/docker-compose.yml run --rm api poetry run alembic upgrade head
 
       - name: Generate SchemaSpy docs (docker image)
         run: |
@@ -66,7 +66,7 @@ jobs:
 
       - name: Export schema SQL
         run: |
-          docker compose -f dockerfiles/docker-compose.yml exec -T \
+          docker compose -f docker/docker-compose.yml exec -T \
             -e PGPASSWORD="mypassword" \
             worms-db \
             pg_dump -U myuser -d worms-cachedb \
