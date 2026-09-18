@@ -27,24 +27,29 @@ jobs:
           echo POSTGRES_HOST_ALEMBIC=worms-db >> .env
 
       - name: Create shared_services network
-        run: docker network create shared_services || echo "Network already exists"
+        run: docker network create shared_services || true
 
-      - name: Start stack
-        run: docker compose -f docker/docker-compose.yml up -d
+      - name: Start PostgreSQL
+        run: |
+          docker compose -f docker/docker-compose.yml up -d worms-db
 
-      - name: Wait for Postgres
+      - name: Wait for PostgreSQL
         run: |
           for i in {1..60}; do
             docker compose -f docker/docker-compose.yml exec -T worms-db \
-              pg_isready -U "myuser" && exit 0
+              pg_isready -U myuser -d worms-cachedb && exit 0
+
             sleep 2
           done
+
+          echo "PostgreSQL did not become ready"
           exit 1
 
-      - name: Run migrations
+      - name: Run Django migrations
         run: |
           docker compose -f docker/docker-compose.yml run --rm \
-            worms-cache alembic upgrade head
+            worms-cache \
+            python manage.py migrate
 
       - name: Generate SchemaSpy docs
         run: |
