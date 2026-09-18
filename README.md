@@ -61,6 +61,11 @@ These are the mapped endpoints from the WoRMS REST API:
 └── .env.example
 ```
 
+### Database Schema
+
+The database schema consists of several tables that store taxonomic records, their relationships, and related metadata. The main tables include `taxa`, `ranks`, `vernaculars`, and `name_index`. For a detailed information about the database, take a look at the [database docs](https://paidiver.github.io/woms-cache/database), which is an auto-generated database documentation using SchemaSpy.
+
+
 ### Services
 
 | Service      | Purpose                                   |
