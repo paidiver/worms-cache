@@ -1,17 +1,15 @@
 name: SchemaSpy
 
-
 permissions:
   contents: write
 
 on:
   workflow_dispatch:
   push:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   generate:
-    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
 
     steps:
@@ -37,19 +35,25 @@ jobs:
       - name: Wait for Postgres
         run: |
           for i in {1..60}; do
-            docker compose -f docker/docker-compose.yml exec -T worms-db pg_isready -U "myuser" && exit 0
+            docker compose -f docker/docker-compose.yml exec -T worms-db \
+              pg_isready -U "myuser" && exit 0
             sleep 2
           done
           exit 1
 
       - name: Run migrations
-        run: docker compose -f docker/docker-compose.yml run --rm api poetry run alembic upgrade head
+        run: |
+          docker compose -f docker/docker-compose.yml run --rm \
+            worms-cache alembic upgrade head
 
-      - name: Generate SchemaSpy docs (docker image)
+      - name: Generate SchemaSpy docs
         run: |
           mkdir -p docs
           chmod -R a+rwx docs
-          curl -L https://jdbc.postgresql.org/download/postgresql-42.5.4.jar -o jdbc-driver.jar
+
+          curl -L \
+            https://jdbc.postgresql.org/download/postgresql-42.5.4.jar \
+            -o jdbc-driver.jar
 
           docker run --rm \
             --network="shared_services" \
@@ -69,26 +73,18 @@ jobs:
           docker compose -f docker/docker-compose.yml exec -T \
             -e PGPASSWORD="mypassword" \
             worms-db \
-            pg_dump -U myuser -d worms-cachedb \
-              --schema-only --no-owner --no-privileges \
+            pg_dump \
+              -U myuser \
+              -d worms-cachedb \
+              --schema-only \
+              --no-owner \
+              --no-privileges \
             > docs/schema.sql
 
-      - name: Commit and push docs if changed
-        run: |
-          set -e
-
-          # Configure identity for the commit
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          # Stage generated artifacts
-          git add docs/
-
-          # Only commit if there are staged changes
-          if git diff --cached --quiet; then
-            echo "No changes in docs/ to commit."
-            exit 0
-          fi
-
-          git commit -m "Update SchemaSpy docs and schema SQL [skip ci]"
-          git push
+      - name: Deploy to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./docs
+          publish_branch: gh-pages
+          force_orphan: true
