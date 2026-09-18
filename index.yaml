@@ -1,0 +1,18 @@
+apiVersion: v1
+entries:
+  api:
+  - apiVersion: v2
+    appVersion: 0.1.10-test4
+    created: "2026-09-18T09:25:57.725942052Z"
+    description: A database and API for imagery metadata and worms-cache
+    digest: e65c5d7c754eadbd6606e1c1cb3adfc764f6ddf03a2e9e3d6f3c3a68601e63a5
+    maintainers:
+    - email: tobias.ferreira@noc.ac.uk
+      name: tobfer
+      url: bodc.ac.uk
+    name: api
+    type: application
+    urls:
+    - https://github.com/paidiver/worms-cache/releases/download/api-0.1.10-test4/api-0.1.10-test4.tgz
+    version: 0.1.10-test4
+generated: "2026-09-18T09:25:57.725953222Z"
